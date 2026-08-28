@@ -182,10 +182,31 @@ Established by reading the actual files, not the documentation. Trust these over
 - **2006 carries more total length than 2021** (1.33M vs 1.17M km) because it holds far more very long
   arcs — 22,486 over 5 km against 2021's 13,055. Not an import bug; neither table has a duplicate
   geometry.
-- Segment counts: 1996 = 629,574 (urban only); 2001 = 2,053,112; 2006 = 1,869,564; 2011 = 1,973,932;
-  2016 = 2,163,058; 2021 = 2,242,117.
+- Segment counts: 1991 = 599,625 and 1996 = 629,574 (both urban only); 2001 = 2,053,112;
+  2006 = 1,869,564; 2011 = 1,973,932; 2016 = 2,163,058; 2021 = 2,242,117.
 - 1991 and 1996 cover **urban areas only**; 2001 onward is national. 2001 imports 2,053,112 arcs /
   1,736,503 km as read, 1,329,337 km once the non-road classes above are dropped.
+- **1991's class vocabulary is a strict subset of 1996's**, so `cs_snf_road_classes()` — calibrated on
+  1996 — needs no extension for it: nothing appears in 1991 that 1996 lacks, and 1996 adds only `GJA`,
+  `GCO`, `U`, `GCH`. 1991 imports 160,778 km, of which `roads_only` keeps 503,464 arcs / 104,294 km
+  and drops 96,161 arcs / 56,485 km — the same ~35% as 1996, and verifiably not road: `RSI`/`RMU`/`RSG`
+  are the CNR and CPR mains and yards, `Z` is literally named `POWER LINE 001`, `W` watercourse (10,766
+  km), `CEA` the census EA boundary. Its geometry checks out too: 93% of ordinary-street midpoints lie
+  within 40 m of a 2021 arc, and the national extent is lon −124.5…−52.7, lat 42.1…54.0.
+- **`arc_id` is unique only within a source file for 1991.** 599,625 arcs carry 414,771 identifiers but
+  only 414,367 distinct values, because the SNF ships one shapefile per urban area and numbers each
+  from scratch; `(source_file, source_id)` is unique. 1996 happens not to collide. Never join an SNF
+  vintage on `source_id` alone.
+- **The SNF is unaccented ASCII** — 0 accented names in 1991, exactly 1 in 1996 — so the Latin-1 `.dbf`
+  problem is an RNF and 2001-coverage matter only, never an SNF one.
+- **The SNF `NAME` field is fixed-width and packs a status suffix**, which survives `trim()` as a run
+  of interior spaces: `CLAIRVIEW      PROP.` (proposed), `DESAUTELS     PROJ.` (projected, i.e. not
+  built in that year), `CAMBRIAN      PRIV.` (private), plus French article and qualifier tokens (`DU`,
+  `FR`, `VI`, `LR`, `VP`, `FA`) and bare direction letters. `TYPE` and `DIRECTION` are separate and
+  populated independently, so this is not a mis-parse — `J.A. PARE     PROJ.` carries `TYPE = BV`. It
+  affects 11,180 of 1991's 579,675 named arcs (1.9%) and 1,399 of 1996's (0.2%). Two consequences: the
+  packed names never match a modern `name_fold`, and ~2,000 `PROP.`/`PROJ.` arcs are roads that did not
+  exist in the year that carries them.
 - **The 1991/1996 SNF is a full topographic base, not a road network.** `class IS NULL` is an ordinary
   street (503,150 arcs in 1996; 96% of arcs are typed, 76% addressed); a non-null `class` names a
   *feature type*, of which only twelve are roads — see `cs_snf_road_classes()`. Watercourses, rail,
@@ -277,7 +298,10 @@ possible — it recovers the annexation of 54.7 km of road into Airdrie between 
 
 **Region scale is fast; national is not solved.** The Calgary CMA over six vintages builds in ~25 s
 (75,662 segments, 12,397 km; 1996 4,864 km → 2001 9,254 → 2006 10,145 → 2011 10,643 → 2016 11,088
-→ 2021 11,505, and the 1996→2001 jump is coverage, not construction).
+→ 2021 11,505, and the 1996→2001 jump is coverage, not construction). Adding 1991 costs nothing:
+all seven vintages over the Calgary CSD envelope build in 19 s (65,631 segments, 8,143 km; 1991
+4,427 km → 1996 4,870 → 2001 5,930 → 2006 6,567 → 2011 6,919 → 2016 7,422 → 2021 7,727 — strictly
+monotone, and the invariant holds on every row), with 1991 calibrating to a 35 m tolerance.
 National is a different animal, and the v1 benchmark that said "3.1 s" was measuring only breakpoint
 derivation plus a bare coverage test — *not* the real predicate — so do not trust it.
 
