@@ -3,7 +3,6 @@
 ^\.claude$
 ^\.github$
 ^\.Rproj\.user$
-^CLAUDE\.md$
 ^data-raw$
 ^docs$
 ^LICENSE\.md$
