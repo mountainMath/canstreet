@@ -136,14 +136,76 @@ robust_unzip <- function(path, exdir) {
   invisible(NULL)
 }
 
+# Convert an ArcInfo interchange coverage to a shapefile beside it.
+#
+# 2001 is the only vintage that arrives this way, and reading it directly is
+# not an option: DuckDB's `ST_Read` over GDAL's AVCE00 driver scanned about
+# 230 rows a second, which is over two hours for the file's 2,053,112 arcs,
+# where `ogr2ogr` writes the whole thing as a shapefile in ninety seconds.
+#
+# A coverage names its layers by geometry -- `ARC` is the network, `PAL`,
+# `CNT` and `LAB` are the polygon side -- so the layer is selected explicitly;
+# without it all four would be written.
+#
+# `ENCODING=` (empty) is what makes the accents survive. The coverage's `.dbf`
+# is Latin-1 (60,918 bytes above 0x7F, `0xE9` for the acute e of "Vérendrye"
+# most of all), and GDAL passes those bytes through unrecoded while believing
+# them to be UTF-8. Writing an empty layer encoding tells it to keep them as
+# they are and write no `.cpg`, which leaves exactly the file every other RNF
+# vintage ships: a Latin-1 `.dbf` with no declared encoding, read back with
+# the `ENCODING=ISO-8859-1` that `cs_st_read_sql()` already applies. Letting
+# GDAL write its default `.cpg` instead would label the bytes UTF-8 and the
+# first accented street name would abort the scan.
+cs_coverage_to_shapefile <- function(path) {
+  out <- paste0(tools::file_path_sans_ext(path), "_arc.shp")
+  if (file.exists(out)) return(out)
+  # A shapefile field name is ten characters, so GDAL warns thirteen times
+  # about truncating this coverage's -- `ADDR_FM_LEFT` to `ADDR_FM_LE` and so
+  # on. That truncation is not a loss, it is the point: it lands the columns on
+  # the same ten-character spellings every other vintage ships and the alias
+  # table already resolves. Only these are muffled; any other GDAL warning
+  # still reaches the caller.
+  withCallingHandlers(
+    sf::gdal_utils("vectortranslate", source = path, destination = out,
+                   options = c("-f", "ESRI Shapefile",
+                               "-sql", "SELECT * FROM ARC",
+                               "-lco", "ENCODING=")),
+    warning = function(w) {
+      if (grepl("[Nn]ormalized/laundered field name", conditionMessage(w))) {
+        invokeRestart("muffleWarning")
+      }
+    })
+  if (!file.exists(out)) {
+    stop("Could not convert the ArcInfo coverage '", basename(path),
+         "' to a shapefile.", call. = FALSE)
+  }
+  # GDAL writes a zero-byte .cpg for an empty ENCODING; left in place it is an
+  # ambiguous declaration where none is wanted.
+  cpg <- paste0(tools::file_path_sans_ext(out), ".cpg")
+  if (file.exists(cpg) && file.size(cpg) == 0) unlink(cpg)
+  out
+}
+
 # Locate the road/street line layer inside an extracted archive. Several
 # vintages ship block or hydrography polygons alongside the streets, so the
 # shapefile is chosen on geometry type rather than on position or size.
-cs_resolve_line_shapefile <- function(dir) {
+#
+# 2001 is the exception: Statistics Canada ships it as an ArcInfo interchange
+# coverage rather than a shapefile. It is converted to one here, so that
+# everything downstream sees the same shape of file every other vintage has.
+cs_resolve_line_source <- function(dir) {
+  e00 <- list.files(dir, pattern = "\\.e00$", recursive = TRUE,
+                    full.names = TRUE, ignore.case = TRUE)
+  if (length(e00)) {
+    return(vapply(e00, cs_coverage_to_shapefile, character(1),
+                  USE.NAMES = FALSE))
+  }
+
   shps <- list.files(dir, pattern = "\\.shp$", recursive = TRUE,
                      full.names = TRUE, ignore.case = TRUE)
   if (!length(shps)) {
-    stop("No shapefile found in '", dir, "'.", call. = FALSE)
+    stop("No shapefile or ArcInfo coverage found in '", dir, "'.",
+         call. = FALSE)
   }
   if (length(shps) == 1L) return(shps)
 
@@ -162,4 +224,8 @@ cs_resolve_line_shapefile <- function(dir) {
   shps[is_line]
 }
 
-utils::globalVariables(c("vintage", "geom", "n"))
+utils::globalVariables(c("vintage", "geom", "n",
+                         # temporal-network columns used in dplyr verbs
+                         "len_m", "years", "year_key", "n_years",
+                         "first_year", "last_year", "spine_vintage",
+                         "name_fold", "seg_id", "lo", "hi", "covered"))

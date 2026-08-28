@@ -22,7 +22,14 @@ abacus_base <- "https://abacus.library.ubc.ca"
 #   * 2016 and 2021 sit in their own directories.
 cs_statcan_url <- function(vintage) {
   yy <- sprintf("%02d", vintage %% 100)
-  if (vintage == 2021) {
+  if (vintage == 2001) {
+    # The 2011 directory still serves 2001, in lower case, and only in the `g`
+    # spelling: `lrnf000r01a_e`, `grnf000r01g_e` and `grnf000r01a_f` all return
+    # the soft-404 signature. The same is not true of 1996 or 1991, whose
+    # equivalent paths return it too -- those stay on Abacus.
+    paste0(statcan_census_base, "2011/geo/rnf-frr/files-fichiers/",
+           "grnf000r01a_e.zip")
+  } else if (vintage == 2021) {
     paste0(statcan_census_base, "2021/geo/sip-pis/rnf-frr/files-fichiers/",
            "lrnf000r21a_e.zip")
   } else if (vintage == 2016) {
@@ -37,10 +44,12 @@ cs_statcan_url <- function(vintage) {
   }
 }
 
-# 2005 is the first year of the 92-500-X series. 2016 and 2021 are in the set
-# but get their own paths, handled in `cs_statcan_url()`. There is no 2026
-# release: the catalogue page and the file URL both 404 as of 2026-08-28.
-statcan_vintages <- 2005:2025
+# 2005 is the first year of the 92-500-X series; 2001 predates it but is served
+# from the same directory, so it rides along here rather than through Abacus.
+# 2016 and 2021 are in the set but get their own paths, handled in
+# `cs_statcan_url()`. There is no 2026 release: the catalogue page and the file
+# URL both 404 as of 2026-08-28.
+statcan_vintages <- c(2001, 2005:2025)
 
 #' Source manifest for the historical road and street network files
 #'
@@ -85,7 +94,6 @@ cs_sources <- function() {
   statcan <- tibble::tibble(
     vintage = as.integer(statcan_vintages),
     product = "RNF",
-    catalogue = "92-500-X",
     host = "statcan",
     resource = vapply(statcan_vintages, cs_statcan_url, character(1)),
     file_pattern = NA_character_,
@@ -95,7 +103,15 @@ cs_sources <- function() {
     schema_era = ifelse(statcan_vintages >= 2011, "rnf_modern", "rnf_early"),
     crs = ifelse(statcan_vintages >= 2012, 3347L, 4269L),
     coverage = "national",
-    notes = NA_character_
+    notes = ifelse(statcan_vintages == 2001,
+                   paste("The first national road network file, and the only",
+                         "vintage that is not a shapefile: the archive holds",
+                         "one 1.5 GB ArcInfo interchange coverage, whose ARC",
+                         "layer is the network. Served from the 2011",
+                         "directory. The Abacus deposit of the same year is",
+                         "the same coverage, so nothing is gained by it."),
+                   NA_character_),
+    catalogue = ifelse(statcan_vintages == 2001, "92F0157GIE", "92-500-X")
   )
 
   abacus <- tibble::tribble(
@@ -114,14 +130,7 @@ cs_sources <- function() {
     "^gsnf.*r_shp[.]zip$", NA_character_,
     "tiles", "zip", "snf", 4267L, "urban",
     paste("43 urban units. The parallel `s` archives in the same dataset are",
-          "block and hydrography polygons, not streets."),
-
-    2001L, "RNF", "92F0157GIE", "hdl:11272.1/AB2/LPNCJ5",
-    "^grnf000r02ml_e_shp[.]zip$", NA_character_,
-    "single", "zip", "snf", 4269L, "national",
-    paste("The `ml` variant is the road arcs; `mp` is block polygons. The `a`",
-          "variant is an ArcInfo .e00 coverage of the same data and is skipped",
-          "in favour of the shapefile.")
+          "block and hydrography polygons, not streets.")
   )
 
   out <- dplyr::bind_rows(
@@ -180,4 +189,79 @@ cs_collapse_years <- function(years) {
     if (length(r) < 3L) paste(r, collapse = ", ") else paste0(min(r), "-", max(r))
   }, character(1))
   paste(parts, collapse = ", ")
+}
+
+# The 1991 and 1996 Street Network Files are a full topographic base, not a road
+# network. Alongside streets they carry watercourses, railways, hydro lines and
+# pipelines, census-boundary arcs, and the outlines of parks, golf courses,
+# schools, airports and hospitals -- 51,000 of the 1996 file's 160,000 km, a
+# third of it. The 2001 and later Road Network Files carry none of that, so
+# leaving it in does not merely add noise: every river and rail line in 1996
+# reads as a road that has since been removed. In one inner-Calgary test bbox
+# that alone was 56.6 km of the 57.7 km the build called retired -- Bow River,
+# Elbow River, the CPR and CNR yards, the zoo and two golf courses.
+#
+# `class` separates them. An ordinary street has none at all (503,150 arcs,
+# 96% of them carrying a street type and 76% an address range); the classes
+# below are the ones that are also road, verified by sampling their names and
+# checking that the bridge arcs do not simply duplicate the street underneath
+# (4 of 400 do).
+cs_snf_road_classes <- function() {
+  c("E",                       # streets carried with a class rather than none
+    "H", "HMU", "HSI", "HPR",  # service roads, and the three highway families
+    "F", "FRA", "FEX",         # unopened and service roads, ramps, extensions
+    "B", "BMN", "BMU", "BSI")  # bridges, named and unnamed
+}
+
+# 2001 is a coverage, not a shapefile, and its ARC layer carries the polygon
+# topology of the census geography alongside the network. Three of its `class`
+# codes are that topology rather than road:
+#
+#   BO    167,916 arcs, 388,345 km -- boundary arcs. Not one carries a name, a
+#         street type or an address range, and in Calgary only 60 of 1,057 come
+#         within 10 m of a road, so they are separate geometry rather than block
+#         boundaries laid along street centrelines.
+#   1536    1,625 arcs,  18,650 km -- also unnamed, and its longest arcs run
+#         along 141 W and across 85-87 N: the Yukon-Alaska meridian and the
+#         Arctic Ocean limit.
+#   SB      2,611 arcs,     171 km -- unnamed, untyped, all under 100 m.
+#
+# Dropping the three leaves 1,329,337 km against 2006's 1,326,099 km, 0.24%
+# apart, which is the corroboration: the whole 388,345 km surplus was topology.
+# Left in, every provincial boundary and coastline in the country reads as a
+# road that 2006 removed.
+#
+# Everything else stays, including the numeric codes that carry no name. 1307
+# (346 arcs, 686 km) sits in the same NWT and Yukon interior as 1306, whose arcs
+# are the Klondike, Alaska and Canol highways, so there is no evidence it is not
+# an unnamed road; the remaining unnamed codes total under 8 km between them.
+cs_rnf_2001_nonroad_classes <- function() {
+  c("BO", "SB", "1536")
+}
+
+#' A predicate restricting a vintage to its road features
+#'
+#' `NULL` for the Road Network File vintages from 2005 on, which are roads
+#' already. For the Street Network Files it keeps the unclassed streets plus
+#' [cs_snf_road_classes()]; for 2001 it drops
+#' [cs_rnf_2001_nonroad_classes()].
+#'
+#' @param vintage Reference year.
+#' @return A SQL predicate string, or `NULL` if the vintage needs no filter.
+#' @keywords internal
+#' @noRd
+cs_road_class_sql <- function(vintage, column = "class") {
+  src <- cs_source(vintage)
+  if (!nrow(src)) return(NULL)
+  if (identical(src$product[1], "SNF")) {
+    return(paste0("(", column, " IS NULL OR ", column, " IN (",
+                  paste0("'", cs_snf_road_classes(), "'", collapse = ", "),
+                  "))"))
+  }
+  if (identical(as.integer(vintage), 2001L)) {
+    return(paste0("(", column, " IS NULL OR ", column, " NOT IN (",
+                  paste0("'", cs_rnf_2001_nonroad_classes(), "'",
+                         collapse = ", "), "))"))
+  }
+  NULL
 }

@@ -6,7 +6,7 @@
 \alias{canstreet-package}
 \title{canstreet: Download and Harmonize Historical Statistics Canada Road Network Files}
 \description{
-Downloads, caches and harmonizes the historical Statistics Canada road and street network files so that the evolution of the Canadian road network can be analysed reproducibly. The files span three distinct attribute schemas and three coordinate reference systems across their history; this package normalizes them into a single spatially indexed 'DuckDB' store that can be queried across vintages. Data come from the Road Network File \url{https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X} and its Street Network File predecessors, distributed under the Statistics Canada Open Licence \url{https://www.statcan.gc.ca/en/reference/licence}.
+Downloads, caches and harmonizes the historical Statistics Canada road and street network files so that the evolution of the Canadian road network can be analysed reproducibly. The files span three distinct attribute schemas and three coordinate reference systems across their history; this package normalizes them into a single spatially indexed 'DuckDB' store that can be queried across vintages, and matches segments between vintages to build a temporally unified network in which each segment is tagged with the years it is present in. Data come from the Road Network File \url{https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X} and its Street Network File predecessors, distributed under the Statistics Canada Open Licence \url{https://www.statcan.gc.ca/en/reference/licence}.
 }
 \section{Getting started}{
 
@@ -42,6 +42,7 @@ Useful links:
 Authors:
 \itemize{
   \item Jens von Bergmann \email{jens@mountainmath.ca} (creator and maintainer)
+  \item Tim Gensey \email{genseytim@gmail.com}
 }
 
 }

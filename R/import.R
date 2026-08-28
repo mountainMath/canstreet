@@ -139,7 +139,7 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
   for (i in seq_len(nrow(archives))) {
     exdir <- cs_extract(archives$path[i])
     on.exit(unlink(exdir, recursive = TRUE), add = TRUE)
-    shps <- cs_resolve_line_shapefile(exdir)
+    shps <- cs_resolve_line_source(exdir)
     for (shp in shps) {
       DBI::dbExecute(con, cs_harmonize_sql(con, shp, src, table))
     }

@@ -149,6 +149,48 @@ cs_register_spatial <- function(con, crs = cs_storage_crs()) {
   DBI::dbExecute(con,
     "CREATE OR REPLACE TEMP MACRO cs_wkb(g) AS st_aswkb(g);")
 
+  cs_register_match_macros(con)
+
+  invisible(con)
+}
+
+#' Register the temporal-matching macros
+#'
+#' `cs_local_az()` is the bearing of a line *near a point*, not end to end.
+#' Measured on the source files, the arcs that matching gets wrong are the long
+#' ones: a 5 km highway is a two-point chord in 2006 and a many-vertex curve in
+#' 2021, and `ST_Azimuth(start, end)` over the whole arc describes a direction
+#' no part of the road actually runs in. Taking the azimuth over a 25 m window
+#' centred on the point under test compares like with like.
+#'
+#' The window is clamped so it always has positive extent -- an arc shorter
+#' than 50 m collapses to its whole length rather than to a zero-length
+#' segment, whose azimuth would be undefined.
+#'
+#' `cs_bearing_agree()` folds by 180 degrees, so an arc digitized in the
+#' opposite direction counts as agreement, and treats an undefined bearing as
+#' agreement rather than as a mismatch.
+#'
+#' @param con A DuckDB connection.
+#' @param window_m Half-width of the bearing window, in metres.
+#' @return The connection, invisibly.
+#' @keywords internal
+#' @noRd
+cs_register_match_macros <- function(con, window_m = 25) {
+  DBI::dbExecute(con, paste0(
+    "CREATE OR REPLACE TEMP MACRO cs_local_az(g, p) AS (\n",
+    "  SELECT degrees(st_azimuth(\n",
+    "    st_lineinterpolatepoint(g, greatest(0.0, least(t - w, 1.0 - 2 * w))),\n",
+    "    st_lineinterpolatepoint(g, least(1.0, greatest(t + w, 2 * w)))))\n",
+    "  FROM (SELECT st_linelocatepoint(g, p) AS t,\n",
+    "               least(0.5, ", format(window_m, nsmall = 1),
+    " / greatest(st_length(g), 1.0)) AS w));"))
+
+  DBI::dbExecute(con, paste0(
+    "CREATE OR REPLACE TEMP MACRO cs_bearing_agree(a, b, tol) AS (\n",
+    "  a IS NULL OR b IS NULL OR\n",
+    "  least(abs(a - b), 360 - abs(a - b), abs(abs(a - b) - 180)) < tol);"))
+
   invisible(con)
 }
 
@@ -292,4 +334,86 @@ cs_rebuild_segments_view <- function(con) {
     "CREATE OR REPLACE VIEW segments AS\n",
     paste(parts, collapse = "\nUNION ALL BY NAME\n"), ";"))
   invisible(con)
+}
+
+# ---- temporal-network build metadata ----------------------------------------
+
+#' Layout version of a temporal network build
+#'
+#' Kept separate from [cs_schema_version()]: a change to the matching algorithm
+#' invalidates the derived tables but not the imported vintages, and must not
+#' force a re-download of ~7 GB of source archives.
+#' @keywords internal
+#' @noRd
+cs_tnet_schema_version <- function() 1L
+
+# A separate table rather than more rows in `canstreet_metadata`: that table
+# keys on `vintage INTEGER`, and `cs_db_vintages()` scans it, so a build name
+# stored there would neither fit the column type nor stay out of the vintage
+# listing.
+cs_builds_init <- function(con) {
+  DBI::dbExecute(con, "
+    CREATE TABLE IF NOT EXISTS canstreet_builds (
+      build VARCHAR, key VARCHAR, value VARCHAR
+    );")
+  invisible(con)
+}
+
+#' Write build metadata rows, replacing any already present
+#' @keywords internal
+#' @noRd
+cs_builds_write <- function(con, build, values) {
+  cs_builds_init(con)
+  DBI::dbExecute(
+    con,
+    paste0("DELETE FROM canstreet_builds WHERE build = ? AND key IN (",
+           paste(rep("?", length(values)), collapse = ", "), ");"),
+    params = c(list(as.character(build)), as.list(names(values))))
+  DBI::dbAppendTable(con, "canstreet_builds", data.frame(
+    build = as.character(build),
+    key = names(values),
+    value = as.character(unlist(values)),
+    stringsAsFactors = FALSE
+  ))
+  invisible(con)
+}
+
+#' Read the build metadata table
+#' @keywords internal
+#' @noRd
+cs_builds_read <- function(con, build = NULL) {
+  if (!DBI::dbExistsTable(con, "canstreet_builds")) {
+    return(tibble::tibble(build = character(), key = character(),
+                          value = character()))
+  }
+  out <- tibble::as_tibble(DBI::dbGetQuery(
+    con, "SELECT * FROM canstreet_builds ORDER BY build, key;"))
+  if (!is.null(build)) out <- out[out$build == as.character(build), ]
+  out
+}
+
+cs_builds_value <- function(con, build, key, default = NA_character_) {
+  m <- cs_builds_read(con, build)
+  v <- m$value[m$key == key]
+  if (length(v) != 1L || is.na(v)) default else v
+}
+
+#' Builds currently present in a database
+#' @keywords internal
+#' @noRd
+cs_db_builds <- function(con) {
+  m <- cs_builds_read(con)
+  if (!nrow(m)) return(character(0))
+  b <- sort(unique(m$build[m$key == "tnet_schema_version"]))
+  b[vapply(b, function(x) DBI::dbExistsTable(con, cs_tnet_table_name(x)),
+           logical(1))]
+}
+
+#' A build is usable if it is present and was written by this layout version
+#' @keywords internal
+#' @noRd
+cs_db_has_build <- function(con, build) {
+  if (!build %in% cs_db_builds(con)) return(FALSE)
+  identical(cs_builds_value(con, build, "tnet_schema_version"),
+            as.character(cs_tnet_schema_version()))
 }

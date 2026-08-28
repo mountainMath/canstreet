@@ -19,7 +19,8 @@ too, which means a later import has to download them again.}
 \item{cache_path}{Cache directory. Defaults to \code{\link[=canstreet_cache_path]{canstreet_cache_path()}}.}
 }
 \value{
-The vintages removed, invisibly.
+The vintages removed, invisibly. Any temporal network builds dropped
+along with them are named in a \code{builds_removed} attribute.
 }
 \description{
 Drops a vintage's table from the database and, optionally, its downloaded
@@ -35,6 +36,11 @@ Note that dropping a table does not shrink the database file: DuckDB reuses
 the freed pages for later imports rather than returning them to the
 filesystem. To actually reclaim the space, delete the file and re-import
 from the retained archives.
+
+Any temporal network built over one of the removed vintages goes with it.
+Such a build cannot be rebuilt or even checked once its source is gone, and
+leaving it in place would leave a table whose years no longer correspond to
+anything the cache holds.
 }
 \examples{
 \dontrun{

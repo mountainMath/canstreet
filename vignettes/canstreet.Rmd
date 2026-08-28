@@ -17,14 +17,6 @@ exactly what you would run yourself.
 ``` r
 library(canstreet)
 library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
 ```
 
 ## Set a cache path
@@ -54,14 +46,14 @@ list_road_network_vintages() |>
 #>      <int> <chr>   <chr>    <chr>      <lgl>   
 #>  1    1991 SNF     urban    EPSG:4267  FALSE   
 #>  2    1996 SNF     urban    EPSG:4267  TRUE    
-#>  3    2001 RNF     national EPSG:4269  FALSE   
+#>  3    2001 RNF     national EPSG:4269  TRUE    
 #>  4    2005 RNF     national EPSG:4269  FALSE   
 #>  5    2006 RNF     national EPSG:4269  TRUE    
 #>  6    2007 RNF     national EPSG:4269  FALSE   
 #>  7    2008 RNF     national EPSG:4269  FALSE   
 #>  8    2009 RNF     national EPSG:4269  FALSE   
 #>  9    2010 RNF     national EPSG:4269  FALSE   
-#> 10    2011 RNF     national EPSG:4269  FALSE   
+#> 10    2011 RNF     national EPSG:4269  TRUE    
 #> # ℹ 14 more rows
 ```
 
@@ -197,8 +189,8 @@ get_road_network(c(1996, 2006, 2021)) |>
 #> # A tibble: 3 × 3
 #>   vintage segments      km
 #>     <int>    <dbl>   <dbl>
-#> 1    1996   629574  167238
-#> 2    2006  1869564 1326099
+#> 1    2006  1869564 1326099
+#> 2    1996   629574  167238
 #> 3    2021  2242117 1170167
 ```
 
@@ -217,14 +209,16 @@ get_road_network(c(2006, 2021)) |>
 #> # A tibble: 2 × 3
 #>   vintage long_arcs     km
 #>     <int>     <dbl>  <dbl>
-#> 1    2021     13055 120875
-#> 2    2006     22486 206308
+#> 1    2006     22486 206308
+#> 2    2021     13055 120875
 ```
 
-This is also why `canstreet` does not yet claim to match segments across years:
-identifiers are not documented as stable, and Statistics Canada states arc
-positions are not necessarily consistent between versions. Matching is planned
-for a later release, calibrated against real vintages.
+It is also why matching segments across years is its own piece of work rather
+than a join on an identifier: identifiers are not documented as stable, and
+Statistics Canada states arc positions are not necessarily consistent between
+versions. `build_temporal_network()` does that matching and writes a single
+table in which each segment carries the years it is present in --- see
+`vignette("canstreet-temporal")`.
 
 ## The harmonized schema
 
@@ -271,12 +265,15 @@ get_road_network(2021, within = bbox) |>
 
 ``` r
 list_canstreet_cache()
-#> # A tibble: 3 × 6
+#> # A tibble: 6 × 6
 #>   vintage n_segments n_archives raw_mb imported_at              package_version
 #>     <int>      <int>      <int>  <dbl> <chr>                    <chr>          
 #> 1    1996     629574         50   136  2026-08-28T11:46:27-0700 0.0.0.9000     
-#> 2    2006    1869564          1   219. 2026-08-28T11:55:11-0700 0.0.0.9000     
-#> 3    2021    2242117          1   310. 2026-08-28T11:48:53-0700 0.0.0.9000
+#> 2    2001    2053112          1  1048. 2026-08-28T16:40:56-0700 0.0.0.9000     
+#> 3    2006    1869564          1   219. 2026-08-28T11:55:11-0700 0.0.0.9000     
+#> 4    2011    1973932          1   334. 2026-08-28T12:57:02-0700 0.0.0.9000     
+#> 5    2016    2163058          1   327. 2026-08-28T12:57:31-0700 0.0.0.9000     
+#> 6    2021    2242117          1   310. 2026-08-28T11:48:53-0700 0.0.0.9000
 ```
 
 `remove_canstreet_cache(vintage)` drops a vintage's table and keeps its

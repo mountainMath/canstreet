@@ -1,0 +1,289 @@
+---
+title: "Tracking the road network through time"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tracking the road network through time}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 5, dpi = 96, out.width = "100%",
+                      fig.path = "canstreet-temporal-")
+```
+
+`get_road_network()` gives you each census year's road network on one schema,
+but the years do not line up: the same road is cut into different arcs from one
+release to the next, the identifiers change scheme three times across the
+series, and every arc is redrawn a little as digitizing improves.
+`build_temporal_network()` reconciles them into a single table in which each
+segment carries the list of years it is present in.
+
+This vignette is precomputed --- it downloads several hundred megabytes and
+takes a few minutes --- but the code is exactly what you would run.
+
+```{r library}
+library(canstreet)
+library(dplyr)
+```
+
+## A region to work in
+
+`within` takes any `sf`, `sfc` or `bbox` object, and the *same* polygon is
+stamped across every year. That is not a convenience: Statistics Canada reuses
+`CSDUID` and `CMAUID` codes across boundary revisions, so filtering on the
+attribute would compare different ground in different years --- and the 1996
+and 2006 files carry no region columns at all.
+
+Any source of a polygon will do; `canstreet` does not depend on one. Here is
+the 2021 Calgary CMA from `cancensus`, which needs no API key for the
+geographies and already comes in EPSG:3347:
+
+```{r region}
+cma <- cancensus::get_statcan_geographies("2021", level = "CMA") |>
+  filter(CMANAME == "Calgary")
+
+cma |> select(CMAUID, CMANAME) |> sf::st_drop_geometry()
+```
+
+## Building
+
+Name the years you want. Any two or more will do --- the census years are a
+convention, not a requirement --- and anything not yet imported is downloaded
+first. `NULL` uses whatever the cache already holds.
+
+```{r build}
+calgary <- build_temporal_network(
+  "calgary", c(1996, 2001, 2006, 2011, 2016, 2021),
+  within = cma, region_note = "2021 CMA boundary, Calgary (825)")
+
+calgary
+```
+
+The result is a lazy table like any other in this package, so it collects with
+`collect_road_network()` and exports with `export_road_network()`.
+
+## How much road was there, when
+
+`year_key` is the set of years as a string, which makes "how many kilometres
+were present in exactly these years" a plain `GROUP BY`:
+
+```{r year-key}
+calgary |>
+  group_by(year_key) |>
+  summarize(km = round(sum(len_m, na.rm = TRUE) / 1000, 1)) |>
+  arrange(desc(km)) |>
+  collect()
+```
+
+`years` is the same set as a list column, which answers the other question ---
+how much road existed in a given year, regardless of what else it overlapped:
+
+```{r by-year}
+vints <- c(1996, 2001, 2006, 2011, 2016, 2021)
+
+tibble::tibble(year = vints, km = round(vapply(vints, function(y) {
+  calgary |>
+    filter(list_contains(years, y)) |>
+    summarize(km = sum(len_m, na.rm = TRUE) / 1000) |>
+    pull(km)
+}, numeric(1)), 1))
+```
+
+Read the 1996 figure against its coverage: the Street Network Files are urban
+areas only, so what they cover inside a CMA is the built-up part of it, not the
+whole CMA. 2001 is the first national file, and the jump from 1996 to 2001 is
+mostly that change of coverage rather than road being built.
+
+`n_years`, `first_year` and `last_year` fall out of the year set. Road that is
+new since 1996 is `first_year > 1996`; road that has gone is `last_year < 2021`:
+
+```{r new-and-gone}
+calgary |>
+  summarize(
+    new_since_2006_km = sum(ifelse(first_year > 2006, len_m, 0),
+                            na.rm = TRUE) / 1000,
+    retired_km        = sum(ifelse(last_year < 2021, len_m, 0),
+                            na.rm = TRUE) / 1000) |>
+  collect()
+```
+
+## Newer geometry wins
+
+Positional accuracy improves across the series, so a segment's geometry is
+always cut from the newest year it appears in. That is structural rather than a
+post-hoc preference: the newest vintage is laid down as the spine first, and
+each earlier year contributes geometry only where no later year covers it.
+`spine_vintage` records which year a segment's geometry came from, and it
+always equals `last_year`:
+
+```{r spine}
+calgary |>
+  count(spine_vintage, last_year) |>
+  arrange(spine_vintage) |>
+  collect()
+```
+
+## Segments are cut where the years disagree
+
+The vintages do not agree on where one arc ends and the next begins, so
+matching whole arc to whole arc fails for most of them. Instead each spine arc
+is cut wherever any other year's coverage changes, which is why the build holds
+more segments than any single year holds arcs:
+
+```{r arcs}
+get_road_network(vints, within = cma) |>
+  count(vintage) |>
+  arrange(vintage) |>
+  collect()
+
+calgary |> summarize(harmonized_segments = n()) |> collect()
+```
+
+## How the tolerance was chosen
+
+Nothing here is matched on a number picked in advance. Before matching
+anything, the build measures how far apart the two files put the *same* named
+road, and the rate at which a given tolerance starts matching a road to its
+neighbour instead:
+
+```{r calibration}
+temporal_network_calibration("calgary")
+```
+
+`recall_p50` is the everyday positional disagreement between that year and
+2021; `disagree_25` is the share of arcs whose nearest arc within 25 m carries
+a different name. The tolerance is set where the second is still flat. Pass
+`tolerance =` to override it, as a single number or a vector named by year.
+
+Note the 2016 row: those two files share their base geometry almost exactly, so
+the measured disagreement is effectively zero and the tolerance clamps to its
+lower bound.
+
+## The matching, exposed
+
+`get_temporal_network_sources()` is the crosswalk --- one row per segment per
+year, naming the arc of that year's file it corresponds to, how far away it
+was, and which rule matched it:
+
+```{r crosswalk}
+get_temporal_network_sources("calgary") |>
+  count(vintage, match_kind) |>
+  arrange(vintage, desc(n)) |>
+  collect()
+```
+
+`spine` is the year the geometry came from. `geometry` and `geometry+name` are
+close approaches that also agree on direction. `name_rescue` is the second
+rule: for the long rural and highway arcs that older files digitize as a coarse
+chord and newer ones as a detailed curve, the chord can sit hundreds of metres
+from the road it represents, and only an exact street-name match at longer
+range finds it. Without that rule those arcs are reported as retired roads ---
+in Calgary, some 1,180 km of them. Because the rule is recorded rather than
+hidden, a stricter analysis can drop it:
+
+```{r rescue-share}
+get_temporal_network_sources("calgary") |>
+  filter(vintage == 2006) |>
+  summarize(rescued = sum(ifelse(match_kind == 'name_rescue', 1, 0),
+                          na.rm = TRUE),
+            total = n()) |>
+  collect()
+```
+
+## What actually disappeared
+
+Road that was there in 2006 and is not there now:
+
+```{r retired}
+retired <- get_temporal_network("calgary") |>
+  filter(list_contains(years, 2006L), last_year < 2021) |>
+  collect_road_network()
+
+sum(retired$len_m) / 1000
+```
+
+```{r retired-names}
+retired |>
+  sf::st_drop_geometry() |>
+  mutate(name = ifelse(is.na(name) | name == "", "(unnamed)", name)) |>
+  group_by(name) |>
+  summarize(km = round(sum(len_m) / 1000, 2)) |>
+  arrange(desc(km)) |>
+  head(10)
+```
+
+```{r map, fig.alt = "Roads present in 2006 and gone by 2021, over the Calgary CMA"}
+base <- get_temporal_network("calgary") |>
+  filter(list_contains(years, 2021L)) |>
+  collect_road_network()
+
+plot(sf::st_geometry(base), col = "grey85", lwd = 0.3,
+     main = "Calgary CMA: road present in 2006, gone by 2021")
+plot(sf::st_geometry(retired), col = "firebrick", lwd = 1.2, add = TRUE)
+```
+
+A caution about reading this: it is honest about being a *lower* standard of
+proof than the growth figures. New road is easy --- nothing needs to match.
+Retirement is a negative claim, and any road the matcher failed to find looks
+identical to a road that was removed. The count of segments whose year set has
+an interior gap --- present in 1996 and 2021 but not 2006 --- is the single
+best measure of how often that happens, since a road cannot un-exist and come
+back:
+
+```{r gaps}
+by_key <- calgary |>
+  group_by(year_key, first_year, last_year, n_years) |>
+  summarize(km = sum(len_m, na.rm = TRUE) / 1000, .groups = "drop") |>
+  collect()
+
+# How many of the build's years lie between this segment's first and last?
+expected <- colSums(outer(vints, by_key$first_year, ">=") &
+                    outer(vints, by_key$last_year, "<="))
+gap_km <- sum(by_key$km[by_key$n_years < expected])
+
+c(gap_km = round(gap_km, 1), share = round(gap_km / sum(by_key$km), 4))
+```
+
+## Regions move under the roads
+
+Because the crosswalk records each year's own `csduid_l` against a segment
+whose geometry is fixed, boundary drift becomes a result rather than a caveat.
+A road cannot change municipality on its own, so every row here is an
+annexation, a boundary revision or a recoding:
+
+```{r drift}
+temporal_network_region_drift("calgary") |>
+  mutate(km = round(km, 1)) |>
+  head(8)
+```
+
+Only years that carry the attribute can contribute --- 1996, 2001 and 2006
+have no region columns at all, which is the other half of the reason the region
+is stamped spatially.
+
+## Builds in the cache
+
+```{r listing}
+list_temporal_networks() |>
+  select(name, vintages, n_segments, total_km, regional, built_at)
+```
+
+A build is a pair of tables in the same database as the vintages, so
+`remove_temporal_network()` drops it instantly, and removing a vintage removes
+the builds that depended on it.
+
+`within = NULL` builds the whole country, but be warned that it is a much
+heavier job than the region-scoped path, and on the machine this vignette was
+written on a national two-vintage build did not finish: the coverage pass
+spilled more than 32 GB of DuckDB temporary storage and ran the disk out.
+Region-scoped builds are the supported scale for now, and they are also the
+scale at which the calibration and the retired set can still be checked against
+something you know.
+
+## Attribution
+
+Source data are © Statistics Canada, distributed under the
+[Statistics Canada Open Licence](https://www.statcan.gc.ca/en/reference/licence).
+Cite the product and reference year in anything you publish from it.

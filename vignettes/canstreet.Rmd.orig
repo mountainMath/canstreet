@@ -125,10 +125,12 @@ get_road_network(c(2006, 2021)) |>
   collect()
 ```
 
-This is also why `canstreet` does not yet claim to match segments across years:
-identifiers are not documented as stable, and Statistics Canada states arc
-positions are not necessarily consistent between versions. Matching is planned
-for a later release, calibrated against real vintages.
+It is also why matching segments across years is its own piece of work rather
+than a join on an identifier: identifiers are not documented as stable, and
+Statistics Canada states arc positions are not necessarily consistent between
+versions. `build_temporal_network()` does that matching and writes a single
+table in which each segment carries the years it is present in --- see
+`vignette("canstreet-temporal")`.
 
 ## The harmonized schema
 

@@ -51,7 +51,8 @@ test_that("keep_raw = FALSE also removes the downloaded archives", {
 test_that("removing a vintage that was never imported is not an error", {
   skip_if_no_duckdb_spatial()
   cache <- local_fixture_db(2011, n = 1)
-  expect_equal(remove_canstreet_cache(2016, cache_path = cache), 2016L)
+  expect_equal(remove_canstreet_cache(2016, cache_path = cache), 2016L,
+               ignore_attr = TRUE)
 
   # The vintage that is imported is untouched.
   con <- cs_connect(cache, read_only = TRUE)

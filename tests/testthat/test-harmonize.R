@@ -137,3 +137,93 @@ test_that("geometry is reprojected to the storage CRS with metres for length", {
   expect_gt(got$x, 3e6); expect_lt(got$x, 5e6)
   expect_gt(got$y, 1e6); expect_lt(got$y, 3e6)
 })
+
+test_that("2001's ArcInfo coverage is converted, then read as a shapefile", {
+  skip_if_not_installed("sf")
+  dir <- withr::local_tempdir()
+  e00 <- file.path(dir, "grnf000r02a_e.e00")
+  file.create(e00)
+
+  # Conversion is where the coverage stops being special: everything after it
+  # sees an ordinary shapefile, read with the encoding every vintage needs.
+  called <- NULL
+  local_mocked_bindings(
+    cs_coverage_to_shapefile = function(path) {
+      called <<- path
+      sub("\\.e00$", "_arc.shp", path)
+    })
+  found <- cs_resolve_line_source(dir)
+  expect_equal(called, e00)
+  expect_match(found, "_arc\\.shp$")
+  expect_match(cs_st_read_sql(found), "ENCODING=ISO-8859-1", fixed = TRUE)
+})
+
+test_that("a coverage is preferred over stray shapefiles in the same archive", {
+  dir <- withr::local_tempdir()
+  file.create(file.path(dir, "notes.shp"))
+  expect_match(cs_resolve_line_source(dir), "\\.shp$")
+
+  file.create(file.path(dir, "roads.e00"))
+  local_mocked_bindings(
+    cs_coverage_to_shapefile = function(path) sub("\\.e00$", "_arc.shp", path))
+  expect_match(cs_resolve_line_source(dir), "roads_arc\\.shp$")
+})
+
+test_that("the converted coverage is asked for the ARC layer, unrecoded", {
+  skip_if_not_installed("sf")
+  opts <- NULL
+  local_mocked_bindings(
+    gdal_utils = function(util, source, destination, options, ...) {
+      opts <<- options
+      file.create(destination)
+      TRUE
+    }, .package = "sf")
+
+  dir <- withr::local_tempdir()
+  e00 <- file.path(dir, "cov.e00")
+  file.create(e00)
+  out <- cs_coverage_to_shapefile(e00)
+
+  expect_equal(out, file.path(dir, "cov_arc.shp"))
+  # Only the arc layer: a coverage also holds PAL, CNT and LAB.
+  expect_true("SELECT * FROM ARC" %in% opts)
+  # An empty layer encoding keeps the Latin-1 bytes and writes no .cpg, which
+  # is the file shape `cs_st_read_sql()` already knows how to read.
+  expect_equal(opts[which(opts == "-lco") + 1L], "ENCODING=")
+
+  # A second call reuses the conversion rather than repeating it.
+  opts <- NULL
+  expect_equal(cs_coverage_to_shapefile(e00), out)
+  expect_null(opts)
+})
+
+test_that("only the expected field-truncation warnings are muffled", {
+  skip_if_not_installed("sf")
+  local_mocked_bindings(
+    gdal_utils = function(util, source, destination, options, ...) {
+      # Both of the warnings a real conversion of the 2001 coverage emits.
+      warning("GDAL Message 6: Normalized/laundered field name: ",
+              "'ADDR_FM_LEFT' to 'ADDR_FM_LE'")
+      warning("GDAL Message 1: Value 'NA    ' of field ARC.ADDR_TO_LEFT ",
+              "parsed incompletely to integer 0.")
+      file.create(destination)
+      TRUE
+    }, .package = "sf")
+
+  dir <- withr::local_tempdir()
+  e00 <- file.path(dir, "cov.e00")
+  file.create(e00)
+
+  seen <- character()
+  withCallingHandlers(cs_coverage_to_shapefile(e00),
+                      warning = function(w) {
+                        seen <<- c(seen, conditionMessage(w))
+                        invokeRestart("muffleWarning")
+                      })
+
+  # The truncation is the point -- it lands the columns on the ten-character
+  # spellings the alias table carries -- so it is silenced. Anything else GDAL
+  # has to say still gets through.
+  expect_length(seen, 1L)
+  expect_match(seen, "parsed incompletely to integer 0")
+})

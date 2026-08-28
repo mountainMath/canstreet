@@ -16,7 +16,9 @@ with \code{\link[=set_canstreet_cache_path]{set_canstreet_cache_path()}} to keep
 A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per imported vintage --
 \code{vintage}, \code{n_segments}, \code{n_archives}, \code{raw_mb}, \code{imported_at},
 \code{package_version} -- carrying the size of the database file in a
-\code{db_mb} attribute. Zero rows if nothing has been imported.
+\code{db_mb} attribute and, when any temporal network has been built, the
+result of \code{\link[=list_temporal_networks]{list_temporal_networks()}} in a \code{builds} attribute. Zero rows if
+nothing has been imported.
 }
 \description{
 Reports what the cache holds: which vintages are imported, how many segments

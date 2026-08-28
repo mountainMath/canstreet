@@ -57,3 +57,29 @@ test_that("table names distinguish the two products", {
   expect_equal(cs_table_name(1996), "snf_1996")
   expect_equal(cs_table_name(2021), "rnf_2021")
 })
+
+test_that("each vintage is restricted to its own idea of a road", {
+  # A Road Network File from 2005 on is roads already.
+  expect_null(cs_road_class_sql(2021))
+  expect_null(cs_road_class_sql(2006))
+
+  # The Street Network Files keep the unclassed streets, which are the ordinary
+  # ones, plus the classes that are also road.
+  snf <- cs_road_class_sql(1996)
+  expect_match(snf, "class IS NULL OR class IN")
+  expect_match(snf, "'HMU'")
+  expect_false(grepl("'W'", snf))  # watercourses are not among them
+
+  # 2001 is the other way round: it is a coverage whose arc layer carries the
+  # census boundary topology, so the filter names what to drop rather than what
+  # to keep -- everything else, named or not, is road.
+  rnf01 <- cs_road_class_sql(2001)
+  expect_match(rnf01, "class IS NULL OR class NOT IN")
+  expect_true(all(vapply(cs_rnf_2001_nonroad_classes(),
+                         function(k) grepl(paste0("'", k, "'"), rnf01),
+                         logical(1))))
+  expect_false(grepl("'1011'", rnf01))  # the streets stay
+
+  # The column is nameable, so the predicate can be applied to an alias.
+  expect_match(cs_road_class_sql(2001, "o.class"), "o.class NOT IN")
+})
