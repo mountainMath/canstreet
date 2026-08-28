@@ -1,0 +1,171 @@
+---
+title: "Getting started with canstreet"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with canstreet}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+# Figures are written beside the .Rmd rather than into a `figure/` directory:
+# R CMD check reports a directory by that name in vignettes/ as knitr detritus,
+# but a precomputed vignette has to ship its figures.
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
+                      fig.height = 4.5, dpi = 96, out.width = "100%",
+                      fig.path = "canstreet-")
+```
+
+This vignette is precomputed: it downloads several hundred megabytes and takes
+a few minutes, which is more than a package build should do. The code is
+exactly what you would run yourself.
+
+```{r library}
+library(canstreet)
+library(dplyr)
+```
+
+## Set a cache path
+
+Road network files are large — a national vintage is 200–350 MB compressed and
+about 2.2 million segments — so `canstreet` caches both the downloaded archives
+and the harmonized database. Set a directory once and it applies to every
+session:
+
+```{r cache, eval = FALSE}
+set_canstreet_cache_path("~/data/canstreet", install = TRUE)
+```
+
+Without one, everything goes to `tempdir()` and is downloaded again next time.
+`show_canstreet_cache_path()` reports what is in effect and where the setting
+came from.
+
+## What is available
+
+```{r vintages}
+list_road_network_vintages() |>
+  select(vintage, product, coverage, source_crs, imported)
+```
+
+The 1991 and 1996 Street Network Files cover urban areas only; everything from
+2001 on is national.
+
+## Getting a vintage
+
+The first call downloads and imports; after that it is instant.
+
+```{r get}
+roads <- get_road_network(2021)
+roads
+```
+
+The result is a lazy table over DuckDB, so this aggregation over 2.2 million
+segments runs inside the database and only the answer comes back to R:
+
+```{r by-province}
+roads |>
+  filter(!is.na(pruid_l)) |>
+  group_by(pruid_l) |>
+  summarize(segments = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
+  arrange(desc(km)) |>
+  collect()
+```
+
+## Spatial filters
+
+Pass any `sf`, `sfc` or `bbox` object as `within`. Over a single vintage the
+filter uses that vintage's R-tree index, so it stays fast on a national file.
+`collect_road_network()` then materializes the result as `sf`.
+
+```{r vancouver}
+bbox <- sf::st_bbox(c(xmin = -123.15, ymin = 49.26, xmax = -123.09,
+                      ymax = 49.29), crs = 4326)
+
+downtown <- get_road_network(2021, within = bbox) |>
+  collect_road_network()
+
+downtown |> select(name, type, af_l, at_l, csdname_l)
+```
+
+```{r plot, fig.alt = "Street segments in downtown Vancouver, 2021"}
+plot(sf::st_geometry(downtown), col = "grey30", lwd = 0.6)
+```
+
+Geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), which is
+why `len_m` is in metres for every vintage. Ask
+`collect_road_network()` for another CRS when you need one:
+
+```{r crs}
+sf::st_crs(collect_road_network(get_road_network(2021, within = bbox),
+                                crs = 4326))$epsg
+```
+
+## Comparing vintages
+
+Several years at once are stacked into one table, which is what makes change
+over time a single query:
+
+```{r across-years}
+get_road_network(c(1996, 2006, 2021)) |>
+  group_by(vintage) |>
+  summarize(segments = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
+  collect()
+```
+
+Read those totals with the coverage difference in mind: 1996 is urban areas
+only. The 2006–2021 drop is in the source data rather than in the import — the
+2006 file carries far more very long arcs, which later releases split,
+reclassified or dropped:
+
+```{r long-arcs}
+get_road_network(c(2006, 2021)) |>
+  filter(len_m > 5000) |>
+  group_by(vintage) |>
+  summarize(long_arcs = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
+  collect()
+```
+
+This is also why `canstreet` does not yet claim to match segments across years:
+identifiers are not documented as stable, and Statistics Canada states arc
+positions are not necessarily consistent between versions. Matching is planned
+for a later release, calibrated against real vintages.
+
+## The harmonized schema
+
+Every vintage is mapped onto the same columns. A column that a vintage's source
+files do not carry is `NA` throughout that vintage rather than absent, so the
+union stays legal.
+
+```{r schema}
+canstreet_schema()
+```
+
+Vintages spell things very differently — `arc_id` in 1991/1996, `RB_UID`
+in 2001–2010, `NGD_UID` from 2011 and `NGDUID` in 2016/2017 — and the importer
+resolves each by name, case-insensitively, rather than assuming an era.
+
+## Exporting
+
+`export_road_network()` writes GeoParquet with the CRS in its metadata, for use
+from Python, QGIS or DuckDB:
+
+```{r export, eval = FALSE}
+get_road_network(2021, within = bbox) |>
+  export_road_network("vancouver_2021.parquet")
+```
+
+## Managing the cache
+
+```{r cache-listing}
+list_canstreet_cache()
+```
+
+`remove_canstreet_cache(vintage)` drops a vintage's table and keeps its
+archives, so it can be re-imported without downloading again; pass
+`keep_raw = FALSE` to delete those too.
+
+## Attribution
+
+Source data are © Statistics Canada, distributed under the
+[Statistics Canada Open Licence](https://www.statcan.gc.ca/en/reference/licence).
+Cite the product and reference year in anything you publish from it.

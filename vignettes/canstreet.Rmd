@@ -1,0 +1,290 @@
+---
+title: "Getting started with canstreet"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with canstreet}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+
+This vignette is precomputed: it downloads several hundred megabytes and takes
+a few minutes, which is more than a package build should do. The code is
+exactly what you would run yourself.
+
+
+``` r
+library(canstreet)
+library(dplyr)
+#> 
+#> Attaching package: 'dplyr'
+#> The following objects are masked from 'package:stats':
+#> 
+#>     filter, lag
+#> The following objects are masked from 'package:base':
+#> 
+#>     intersect, setdiff, setequal, union
+```
+
+## Set a cache path
+
+Road network files are large — a national vintage is 200–350 MB compressed and
+about 2.2 million segments — so `canstreet` caches both the downloaded archives
+and the harmonized database. Set a directory once and it applies to every
+session:
+
+
+``` r
+set_canstreet_cache_path("~/data/canstreet", install = TRUE)
+```
+
+Without one, everything goes to `tempdir()` and is downloaded again next time.
+`show_canstreet_cache_path()` reports what is in effect and where the setting
+came from.
+
+## What is available
+
+
+``` r
+list_road_network_vintages() |>
+  select(vintage, product, coverage, source_crs, imported)
+#> # A tibble: 24 × 5
+#>    vintage product coverage source_crs imported
+#>      <int> <chr>   <chr>    <chr>      <lgl>   
+#>  1    1991 SNF     urban    EPSG:4267  FALSE   
+#>  2    1996 SNF     urban    EPSG:4267  TRUE    
+#>  3    2001 RNF     national EPSG:4269  FALSE   
+#>  4    2005 RNF     national EPSG:4269  FALSE   
+#>  5    2006 RNF     national EPSG:4269  TRUE    
+#>  6    2007 RNF     national EPSG:4269  FALSE   
+#>  7    2008 RNF     national EPSG:4269  FALSE   
+#>  8    2009 RNF     national EPSG:4269  FALSE   
+#>  9    2010 RNF     national EPSG:4269  FALSE   
+#> 10    2011 RNF     national EPSG:4269  FALSE   
+#> # ℹ 14 more rows
+```
+
+The 1991 and 1996 Street Network Files cover urban areas only; everything from
+2001 on is national.
+
+## Getting a vintage
+
+The first call downloads and imports; after that it is instant.
+
+
+``` r
+roads <- get_road_network(2021)
+roads
+#> # A query:  ?? x 24
+#> # Database: DuckDB 1.5.4 [jens@Darwin 25.6.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
+#>    vintage source_file source_id name  type  dir    af_l  at_l  af_r  at_r class
+#>      <int> <chr>       <chr>     <chr> <chr> <chr> <int> <int> <int> <int> <chr>
+#>  1    2021 lrnf000r21… 5792582   des … RANG  <NA>    195   195   182   194 23   
+#>  2    2021 lrnf000r21… 4744971   Town… <NA>  <NA>     NA    NA    NA    NA 22   
+#>  3    2021 lrnf000r21… 1935694   733 … RD    <NA>     NA    NA    NA    NA 23   
+#>  4    2021 lrnf000r21… 1618738   <NA>  <NA>  <NA>     NA    NA    NA    NA 23   
+#>  5    2021 lrnf000r21… 5055161   Maple ST    <NA>     NA    NA    NA    NA 23   
+#>  6    2021 lrnf000r21… 5483228   de H… RUE   <NA>    589   631   580   666 23   
+#>  7    2021 lrnf000r21… 5469451   Fors… RUE   <NA>  12485 12535 12496 12508 23   
+#>  8    2021 lrnf000r21… 1591874   Vict… ST    S        39    49    NA    NA 22   
+#>  9    2021 lrnf000r21… 712595    de l… RUE   <NA>    215   223   216   222 23   
+#> 10    2021 lrnf000r21… 3324319   Soup… RUE   <NA>     NA    NA    NA    NA 23   
+#> # ℹ more rows
+#> # ℹ 13 more variables: rank <chr>, csduid_l <chr>, csduid_r <chr>,
+#> #   csdname_l <chr>, csdname_r <chr>, csdtype_l <chr>, csdtype_r <chr>,
+#> #   cmauid_l <chr>, cmauid_r <chr>, pruid_l <chr>, pruid_r <chr>, len_m <dbl>,
+#> #   geom <list>
+```
+
+The result is a lazy table over DuckDB, so this aggregation over 2.2 million
+segments runs inside the database and only the answer comes back to R:
+
+
+``` r
+roads |>
+  filter(!is.na(pruid_l)) |>
+  group_by(pruid_l) |>
+  summarize(segments = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
+  arrange(desc(km)) |>
+  collect()
+#> # A tibble: 13 × 3
+#>    pruid_l segments     km
+#>    <chr>      <dbl>  <dbl>
+#>  1 47        223061 237403
+#>  2 35        570216 229710
+#>  3 48        369662 214914
+#>  4 24        446796 148103
+#>  5 59        277390 125007
+#>  6 46        125256  96426
+#>  7 12         77424  38538
+#>  8 13         67096  32229
+#>  9 10         54109  24947
+#> 10 60          5712   8849
+#> 11 11         16415   6941
+#> 12 61          5751   6234
+#> 13 62          3227    864
+```
+
+## Spatial filters
+
+Pass any `sf`, `sfc` or `bbox` object as `within`. Over a single vintage the
+filter uses that vintage's R-tree index, so it stays fast on a national file.
+`collect_road_network()` then materializes the result as `sf`.
+
+
+``` r
+bbox <- sf::st_bbox(c(xmin = -123.15, ymin = 49.26, xmax = -123.09,
+                      ymax = 49.29), crs = 4326)
+
+downtown <- get_road_network(2021, within = bbox) |>
+  collect_road_network()
+
+downtown |> select(name, type, af_l, at_l, csdname_l)
+#> Simple feature collection with 2099 features and 5 fields
+#> Geometry type: LINESTRING
+#> Dimension:     XY
+#> Bounding box:  xmin: 4015724 ymin: 2004073 xmax: 4021033 ymax: 2008953
+#> Projected CRS: NAD83 / Statistics Canada Lambert
+#> # A tibble: 2,099 × 6
+#>    name          type   af_l  at_l csdname_l                                geom
+#>    <chr>         <chr> <int> <int> <chr>                        <LINESTRING [m]>
+#>  1 11th          AVE     605   675 Vancouver  (4019577 2004160, 4019699 2004093)
+#>  2 Carolina      ST     2706  2724 Vancouver (4019577 2004160, 4019553 2004116,…
+#>  3 Carolina      ST     2640  2640 Vancouver (4019624 2004244, 4019602 2004204,…
+#>  4 11th          AVE     501   599 Vancouver  (4019453 2004229, 4019577 2004160)
+#>  5 10th          AVE     571   657 Vancouver  (4019624 2004244, 4019745 2004178)
+#>  6 St. George    ST     2710  2750 Vancouver (4019453 2004229, 4019428 2004184,…
+#>  7 11th          AVE     401   435 Vancouver  (4019253 2004339, 4019329 2004297)
+#>  8 Carolina      ST     2520  2638 Vancouver (4019677 2004341, 4019649 2004290,…
+#>  9 Prince Edward ST     2650  2698 Vancouver  (4019274 2004374, 4019253 2004339)
+#> 10 Broadway      <NA>    601   699 Vancouver  (4019677 2004341, 4019799 2004274)
+#> # ℹ 2,089 more rows
+```
+
+
+``` r
+plot(sf::st_geometry(downtown), col = "grey30", lwd = 0.6)
+```
+
+<div class="figure">
+<img src="canstreet-plot-1.png" alt="Street segments in downtown Vancouver, 2021" width="100%" />
+<p class="caption">plot of chunk plot</p>
+</div>
+
+Geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), which is
+why `len_m` is in metres for every vintage. Ask
+`collect_road_network()` for another CRS when you need one:
+
+
+``` r
+sf::st_crs(collect_road_network(get_road_network(2021, within = bbox),
+                                crs = 4326))$epsg
+#> [1] 4326
+```
+
+## Comparing vintages
+
+Several years at once are stacked into one table, which is what makes change
+over time a single query:
+
+
+``` r
+get_road_network(c(1996, 2006, 2021)) |>
+  group_by(vintage) |>
+  summarize(segments = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
+  collect()
+#> # A tibble: 3 × 3
+#>   vintage segments      km
+#>     <int>    <dbl>   <dbl>
+#> 1    1996   629574  167238
+#> 2    2006  1869564 1326099
+#> 3    2021  2242117 1170167
+```
+
+Read those totals with the coverage difference in mind: 1996 is urban areas
+only. The 2006–2021 drop is in the source data rather than in the import — the
+2006 file carries far more very long arcs, which later releases split,
+reclassified or dropped:
+
+
+``` r
+get_road_network(c(2006, 2021)) |>
+  filter(len_m > 5000) |>
+  group_by(vintage) |>
+  summarize(long_arcs = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
+  collect()
+#> # A tibble: 2 × 3
+#>   vintage long_arcs     km
+#>     <int>     <dbl>  <dbl>
+#> 1    2021     13055 120875
+#> 2    2006     22486 206308
+```
+
+This is also why `canstreet` does not yet claim to match segments across years:
+identifiers are not documented as stable, and Statistics Canada states arc
+positions are not necessarily consistent between versions. Matching is planned
+for a later release, calibrated against real vintages.
+
+## The harmonized schema
+
+Every vintage is mapped onto the same columns. A column that a vintage's source
+files do not carry is `NA` throughout that vintage rather than absent, so the
+union stays legal.
+
+
+``` r
+canstreet_schema()
+#> # A tibble: 24 × 3
+#>    column      type    source_columns                         
+#>    <chr>       <chr>   <chr>                                  
+#>  1 vintage     INTEGER (reference year)                       
+#>  2 source_file VARCHAR (name of the source archive member)    
+#>  3 source_id   VARCHAR NGD_UID, NGDUID, NGD_ID, RB_UID, ARC_ID
+#>  4 name        VARCHAR NAME                                   
+#>  5 type        VARCHAR TYPE                                   
+#>  6 dir         VARCHAR DIR, DIRECTION                         
+#>  7 af_l        INTEGER AFL_VAL, ADDR_FM_LE                    
+#>  8 at_l        INTEGER ATL_VAL, ADDR_TO_LE                    
+#>  9 af_r        INTEGER AFR_VAL, ADDR_FM_RG                    
+#> 10 at_r        INTEGER ATR_VAL, ADDR_TO_RG                    
+#> # ℹ 14 more rows
+```
+
+Vintages spell things very differently — `arc_id` in 1991/1996, `RB_UID`
+in 2001–2010, `NGD_UID` from 2011 and `NGDUID` in 2016/2017 — and the importer
+resolves each by name, case-insensitively, rather than assuming an era.
+
+## Exporting
+
+`export_road_network()` writes GeoParquet with the CRS in its metadata, for use
+from Python, QGIS or DuckDB:
+
+
+``` r
+get_road_network(2021, within = bbox) |>
+  export_road_network("vancouver_2021.parquet")
+```
+
+## Managing the cache
+
+
+``` r
+list_canstreet_cache()
+#> # A tibble: 3 × 6
+#>   vintage n_segments n_archives raw_mb imported_at              package_version
+#>     <int>      <int>      <int>  <dbl> <chr>                    <chr>          
+#> 1    1996     629574         50   136  2026-08-28T11:46:27-0700 0.0.0.9000     
+#> 2    2006    1869564          1   219. 2026-08-28T11:55:11-0700 0.0.0.9000     
+#> 3    2021    2242117          1   310. 2026-08-28T11:48:53-0700 0.0.0.9000
+```
+
+`remove_canstreet_cache(vintage)` drops a vintage's table and keeps its
+archives, so it can be re-imported without downloading again; pass
+`keep_raw = FALSE` to delete those too.
+
+## Attribution
+
+Source data are © Statistics Canada, distributed under the
+[Statistics Canada Open Licence](https://www.statcan.gc.ca/en/reference/licence).
+Cite the product and reference year in anything you publish from it.

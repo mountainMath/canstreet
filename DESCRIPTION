@@ -1,0 +1,51 @@
+Package: canstreet
+Type: Package
+Title: Download and Harmonize Historical Statistics Canada Road Network Files
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Jens", "von Bergmann", email = "jens@mountainmath.ca",
+           role = c("aut", "cre"), comment = "creator and maintainer"))
+Description: Downloads, caches and harmonizes the historical Statistics Canada
+    road and street network files so that the evolution of the Canadian road
+    network can be analysed reproducibly. The files span three distinct
+    attribute schemas and three coordinate reference systems across their
+    history; this package normalizes them into a single spatially indexed
+    'DuckDB' store that can be queried across vintages. Data come from the
+    Road Network File <https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X>
+    and its Street Network File predecessors, distributed under the Statistics
+    Canada Open Licence
+    <https://www.statcan.gc.ca/en/reference/licence>.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Language: en-CA
+LazyData: true
+ByteCompile: yes
+NeedsCompilation: no
+Depends:
+    R (>= 4.1)
+Imports:
+    DBI (>= 1.2),
+    curl (>= 5.0),
+    dbplyr (>= 2.5),
+    dplyr (>= 1.1),
+    duckdb (>= 1.1),
+    jsonlite (>= 1.8),
+    sf,
+    stats,
+    tibble,
+    tools,
+    utils
+Suggests:
+    arrow,
+    ggplot2,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    withr,
+    zip
+URL: https://github.com/mountainMath/canstreet, https://mountainmath.github.io/canstreet/
+BugReports: https://github.com/mountainMath/canstreet/issues
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0
+Roxygen: list(markdown = TRUE)
