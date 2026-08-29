@@ -16,9 +16,8 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.path = "canstreet-")
 ```
 
-This vignette is precomputed: it downloads several hundred megabytes and takes
-a few minutes, which is more than a package build should do. The code is
-exactly what you would run yourself.
+This vignette is precomputed --- it downloads several hundred megabytes --- but
+the code is what you would run.
 
 ```{r library}
 library(canstreet)
@@ -27,18 +26,16 @@ library(dplyr)
 
 ## Set a cache path
 
-Road network files are large — a national vintage is 200–350 MB compressed and
-about 2.2 million segments — so `canstreet` caches both the downloaded archives
-and the harmonized database. Set a directory once and it applies to every
-session:
+A national vintage is 200–350 MB compressed and about 2.2 million segments, so
+`canstreet` caches the archives and the harmonized database. Set a directory
+once and it applies to every session:
 
 ```{r cache, eval = FALSE}
 set_canstreet_cache_path("~/data/canstreet", install = TRUE)
 ```
 
-Without one, everything goes to `tempdir()` and is downloaded again next time.
-`show_canstreet_cache_path()` reports what is in effect and where the setting
-came from.
+Without one everything goes to `tempdir()`. `show_canstreet_cache_path()`
+reports what is in effect.
 
 ## What is available
 
@@ -60,7 +57,7 @@ roads
 ```
 
 The result is a lazy table over DuckDB, so this aggregation over 2.2 million
-segments runs inside the database and only the answer comes back to R:
+segments runs in the database and only the answer comes back:
 
 ```{r by-province}
 roads |>
@@ -91,9 +88,8 @@ downtown |> select(name, type, af_l, at_l, csdname_l)
 plot(sf::st_geometry(downtown), col = "grey30", lwd = 0.6)
 ```
 
-Geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), which is
-why `len_m` is in metres for every vintage. Ask
-`collect_road_network()` for another CRS when you need one:
+Geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), so `len_m`
+is metres for every vintage. `collect_road_network()` reprojects on request:
 
 ```{r crs}
 sf::st_crs(collect_road_network(get_road_network(2021, within = bbox),
@@ -102,8 +98,7 @@ sf::st_crs(collect_road_network(get_road_network(2021, within = bbox),
 
 ## Comparing vintages
 
-Several years at once are stacked into one table, which is what makes change
-over time a single query:
+Several years at once stack into one table:
 
 ```{r across-years}
 get_road_network(c(1996, 2006, 2021)) |>
@@ -112,10 +107,9 @@ get_road_network(c(1996, 2006, 2021)) |>
   collect()
 ```
 
-Read those totals with the coverage difference in mind: 1996 is urban areas
-only. The 2006–2021 drop is in the source data rather than in the import — the
-2006 file carries far more very long arcs, which later releases split,
-reclassified or dropped:
+1996 is urban areas only. The 2006–2021 drop is in the source data, not the
+import: 2006 carries far more very long arcs, which later releases split,
+reclassified or dropped.
 
 ```{r long-arcs}
 get_road_network(c(2006, 2021)) |>
@@ -125,26 +119,23 @@ get_road_network(c(2006, 2021)) |>
   collect()
 ```
 
-It is also why matching segments across years is its own piece of work rather
-than a join on an identifier: identifiers are not documented as stable, and
-Statistics Canada states arc positions are not necessarily consistent between
-versions. `build_temporal_network()` does that matching and writes a single
+Identifiers are not documented as stable across vintages, so comparing years
+means matching geometry. `build_temporal_network()` does that and writes one
 table in which each segment carries the years it is present in --- see
 `vignette("canstreet-temporal")`.
 
 ## The harmonized schema
 
-Every vintage is mapped onto the same columns. A column that a vintage's source
-files do not carry is `NA` throughout that vintage rather than absent, so the
-union stays legal.
+Every vintage maps onto the same columns; one a vintage's files do not carry is
+`NA` throughout it rather than absent, so the union stays legal.
 
 ```{r schema}
 canstreet_schema()
 ```
 
-Vintages spell things very differently — `arc_id` in 1991/1996, `RB_UID`
-in 2001–2010, `NGD_UID` from 2011 and `NGDUID` in 2016/2017 — and the importer
-resolves each by name, case-insensitively, rather than assuming an era.
+Source spellings differ by vintage — `arc_id` in 1991/1996, `RB_UID` in
+2001–2010, `NGD_UID` from 2011, `NGDUID` in 2016/2017 — and the importer
+resolves each by alias, not by era.
 
 ## Exporting
 
