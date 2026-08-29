@@ -30,8 +30,8 @@ cs_statcan_url <- function(vintage) {
     # speed. The `m` variant is MapInfo -- `grnf000r02ml_e.MIF`/`.MID`, the
     # road network, beside an `mp` pair that is the block polygons -- with the
     # same 2,053,112 arcs, a richer attribute table and a declared charset,
-    # and DuckDB scans it whole in about half a minute. See
-    # `cs_coverage_to_shapefile()` for the coverage reader this retires.
+    # and DuckDB scans it whole in about half a minute -- where the coverage
+    # reads at a few hundred arcs a second, which is over two hours.
     #
     # `lrnf000r01a_e`, `grnf000r01g_e` and `grnf000r01a_f` all return the
     # soft-404 signature. The same is true of the equivalent 1991 and 1996
@@ -153,18 +153,24 @@ cs_sources <- function() {
           "Kelowna in UTM zone 11, the rest in zone 10."),
 
     1991L, "SNF", NA_character_, "hdl:11272.1/AB2/2FCGQJ",
-    "_shp[.]zip$", "^(LSNF|OT_HULL)",
+    "^net_.*[.]zip$", NA_character_,
     "tiles", "zip", "snf", 4267L, "urban",
-    paste("51 urban units. The excluded LSNF205 and OT_HULL archives are the",
-          "Lambert twins of GSNF205 (Halifax) and HULL_OTT (Ottawa-Hull) --",
-          "identical features in a NAD27-based conic, and importing them",
-          "would double-count those two areas."),
+    paste("51 urban units, taken as the ArcInfo interchange coverages the",
+          "deposit was made from rather than as the shapefiles derived from",
+          "them. Four of those shapefiles -- Halifax, Chicoutimi-Jonquiere,",
+          "Montreal and Toronto -- lost their arc identifiers in the",
+          "conversion and had every field after a street name containing a",
+          "comma shifted by one; Ottawa-Hull had its class and type merged.",
+          "The coverages have none of that, and no Lambert twins to exclude."),
 
     1996L, "SNF", NA_character_, "hdl:11272.1/AB2/WFFBPW",
-    "^gsnf.*r_shp[.]zip$", NA_character_,
+    "^gsnf.*r_e00[.]zip$", NA_character_,
     "tiles", "zip", "snf", 4267L, "urban",
-    paste("43 urban units. The parallel `s` archives in the same dataset are",
-          "block and hydrography polygons, not streets.")
+    paste("50 urban units, taken as ArcInfo interchange coverages. The",
+          "derived shapefiles in the same dataset carry the same features",
+          "field for field, but the coverage is the deposited original. The",
+          "parallel `s` archives are block and hydrography polygons, not",
+          "streets.")
   )
 
   out <- dplyr::bind_rows(

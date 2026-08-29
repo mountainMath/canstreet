@@ -70,9 +70,22 @@ cs_create_table_sql <- function(con, table) {
 # harmless there: the option is one the MapInfo driver accepts, and the two
 # encodings differ only over 0x80-0x9F, of which the .MID holds not one byte
 # (121,836 high bytes, all of them 0xA0 and above).
+#
+# An ArcInfo interchange coverage takes no notice of it -- the AVCE00 driver
+# has no open options at all, which is why `cs_e00_stage()` has to repair the
+# bytes before the file gets here -- but it accepts the option rather than
+# refusing it, so the reader stays one expression. What a coverage does need
+# is its layer named: it calls its layers after their geometry, `ARC` for the
+# network and `PAL`, `CNT` and `LAB` for the polygon side, and `ST_Read` would
+# otherwise take whichever comes first.
 cs_st_read_sql <- function(path) {
-  paste0("st_read('", gsub("'", "''", path),
-         "', open_options = ['ENCODING=ISO-8859-1'])")
+  layer <- if (grepl("\\.e00$", path, ignore.case = TRUE)) {
+    ", layer = 'ARC'"
+  } else {
+    ""
+  }
+  paste0("st_read('", gsub("'", "''", path), "'", layer,
+         ", open_options = ['ENCODING=ISO-8859-1'])")
 }
 
 #' Build the INSERT that harmonizes one shapefile into a vintage table

@@ -154,58 +154,76 @@ robust_unzip <- function(path, exdir) {
   invisible(NULL)
 }
 
-# Convert an ArcInfo interchange coverage to a shapefile beside it.
+e00_staging_dir <- "canstreet_staged"
+
+# The Latin-1 supplement, folded to one ASCII byte each: 0x80 first, 0xFF
+# last. An interchange file is ASCII text in fixed-width fields, so a byte
+# above 0x7F cannot be recoded to UTF-8 -- widening it to two bytes would
+# shift every field after it on that line -- and it cannot be left alone
+# either, because the AVCE00 driver takes no open options at all, so no
+# ENCODING reaches it and the raw byte lands in a DuckDB string that is not
+# valid UTF-8. Folding to the unaccented base letter is the one repair that
+# keeps a byte a byte. Across the whole 1991 and 1996 series it fires exactly
+# once, on the non-breaking space in Toronto's `EA\xa096`.
+cs_e00_ascii <- local({
+  ascii <- rep(" ", 128L)                       # 0x80-0xFF, index is byte-127
+  ascii[c(0xAA, 0xBA) - 127L] <- c("a", "o")    # the ordinal indicators
+  ascii[(0xC0:0xFF) - 127L] <- strsplit(paste0(
+    "AAAAAAAC", "EEEEIIII", "DNOOOOO ", "OUUUUYPs",
+    "aaaaaaac", "eeeeiiii", "dnooooo ", "ouuuuypy"), "")[[1]]
+  charToRaw(paste(ascii, collapse = ""))
+})
+
+# Fold every byte above 0x7F in a raw vector to its ASCII stand-in.
+cs_e00_fold_bytes <- function(bytes) {
+  hi <- bytes > as.raw(127L)
+  if (!any(hi)) return(bytes)
+  bytes[hi] <- cs_e00_ascii[as.integer(bytes[hi]) - 127L]
+  bytes
+}
+
+# The volumes of one interchange coverage, in reading order.
 #
-# Legacy, and deliberately kept: no vintage in the manifest arrives this way
-# any more. 2001 used to -- its ArcGIS variant is one 1.5 GB coverage -- and
-# reading that directly was not an option, because DuckDB's `ST_Read` over
-# GDAL's AVCE00 driver scanned about 230 rows a second, which is over two
-# hours for the file's 2,053,112 arcs, where `ogr2ogr` writes the whole thing
-# as a shapefile in ninety seconds. 2001 is now taken in its MapInfo spelling
-# instead, which DuckDB reads directly, so this runs only if some future
-# release ships a coverage. `cs_resolve_line_source()` still dispatches to it
-# on a `.e00`.
+# The 1991 Street Network Files ship as multi-volume sets -- `NET_TORO.E00`
+# beside `.E01` ... `.E11` -- and the split is by byte count, not by section,
+# so the volumes are a single file cut into pieces.
+cs_e00_volumes <- function(path) {
+  base <- tolower(tools::file_path_sans_ext(basename(path)))
+  sibs <- list.files(dirname(path), full.names = TRUE)
+  ext <- tolower(tools::file_ext(sibs))
+  keep <- tolower(tools::file_path_sans_ext(basename(sibs))) == base &
+    grepl("^e[0-9]{2}$", ext)
+  sibs[keep][order(ext[keep])]
+}
+
+# Stage an ArcInfo interchange coverage for reading, and return the path.
 #
-# A coverage names its layers by geometry -- `ARC` is the network, `PAL`,
-# `CNT` and `LAB` are the polygon side -- so the layer is selected explicitly;
-# without it all four would be written.
+# Two things have to happen before `ST_Read` sees one. GDAL opens the first
+# volume of a multi-volume set alone and reports whatever part of the coverage
+# it holds as if it were the whole -- 27,327 of Toronto's 82,725 arcs, with an
+# extent to match, and no warning -- so the volumes are concatenated. And the
+# high bytes are folded, for the reason `cs_e00_ascii` gives.
 #
-# `ENCODING=` (empty) is what makes the accents survive. The coverage's `.dbf`
-# is Latin-1 (60,918 bytes above 0x7F, `0xE9` for the acute e of "Vérendrye"
-# most of all), and GDAL passes those bytes through unrecoded while believing
-# them to be UTF-8. Writing an empty layer encoding tells it to keep them as
-# they are and write no `.cpg`, which leaves exactly the file every other RNF
-# vintage ships: a Latin-1 `.dbf` with no declared encoding, read back with
-# the `ENCODING=ISO-8859-1` that `cs_st_read_sql()` already applies. Letting
-# GDAL write its default `.cpg` instead would label the bytes UTF-8 and the
-# first accented street name would abort the scan.
-cs_coverage_to_shapefile <- function(path) {
-  out <- paste0(tools::file_path_sans_ext(path), "_arc.shp")
-  if (file.exists(out)) return(out)
-  # A shapefile field name is ten characters, so GDAL warns thirteen times
-  # about truncating this coverage's -- `ADDR_FM_LEFT` to `ADDR_FM_LE` and so
-  # on. That truncation is not a loss, it is the point: it lands the columns on
-  # the same ten-character spellings every other vintage ships and the alias
-  # table already resolves. Only these are muffled; any other GDAL warning
-  # still reaches the caller.
-  withCallingHandlers(
-    sf::gdal_utils("vectortranslate", source = path, destination = out,
-                   options = c("-f", "ESRI Shapefile",
-                               "-sql", "SELECT * FROM ARC",
-                               "-lco", "ENCODING=")),
-    warning = function(w) {
-      if (grepl("[Nn]ormalized/laundered field name", conditionMessage(w))) {
-        invokeRestart("muffleWarning")
-      }
-    })
-  if (!file.exists(out)) {
-    stop("Could not convert the ArcInfo coverage '", basename(path),
-         "' to a shapefile.", call. = FALSE)
+# Both are done in one streaming pass, in chunks, because a coverage can run
+# to well over a gigabyte. The staged copy keeps the name of the first volume
+# and goes in a subdirectory of its own, so that the `source_file` recorded
+# for every segment is a file the deposit actually contains.
+cs_e00_stage <- function(path) {
+  dest <- file.path(dirname(path), e00_staging_dir)
+  dir.create(dest, showWarnings = FALSE)
+  out <- file.path(dest, basename(path))
+  con <- file(out, "wb")
+  on.exit(close(con), add = TRUE)
+
+  for (vol in cs_e00_volumes(path)) {
+    src <- file(vol, "rb")
+    repeat {
+      chunk <- readBin(src, "raw", 4e6L)
+      if (!length(chunk)) break
+      writeBin(cs_e00_fold_bytes(chunk), con)
+    }
+    close(src)
   }
-  # GDAL writes a zero-byte .cpg for an empty ENCODING; left in place it is an
-  # ambiguous declaration where none is wanted.
-  cpg <- paste0(tools::file_path_sans_ext(out), ".cpg")
-  if (file.exists(cpg) && file.size(cpg) == 0) unlink(cpg)
   out
 }
 
@@ -214,18 +232,20 @@ cs_coverage_to_shapefile <- function(path) {
 # MapInfo release is an `ml` (line) pair beside an `mp` (polygon) one -- so the
 # layer is chosen on geometry type rather than on position, size or name.
 #
-# Two container formats reach here. Every vintage from 1991 on but 2001 is a
-# shapefile; 2001 is MapInfo interchange, a `.MIF` carrying the geometry with
-# its `.MID` alongside carrying the attributes. DuckDB reads both through the
-# same `ST_Read`, so nothing downstream needs to know which it got. A `.e00`
-# coverage is handled too, by conversion -- see `cs_coverage_to_shapefile()`;
-# no current vintage takes that path.
+# Three container formats reach here. 1991 and 1996 are ArcInfo interchange
+# coverages, whose `ARC` layer is the street network; 2001 is MapInfo
+# interchange, a `.MIF` carrying the geometry with its `.MID` alongside
+# carrying the attributes; every other vintage is a shapefile. DuckDB reads
+# all three through the same `ST_Read`, so nothing downstream needs to know
+# which it got -- only the coverage has to be staged first.
 cs_resolve_line_source <- function(dir) {
+  # Anything under the staging directory is a file this function wrote itself;
+  # skipping it keeps a second call on the same directory idempotent.
   e00 <- list.files(dir, pattern = "\\.e00$", recursive = TRUE,
                     full.names = TRUE, ignore.case = TRUE)
+  e00 <- e00[basename(dirname(e00)) != e00_staging_dir]
   if (length(e00)) {
-    return(vapply(e00, cs_coverage_to_shapefile, character(1),
-                  USE.NAMES = FALSE))
+    return(vapply(e00, cs_e00_stage, character(1), USE.NAMES = FALSE))
   }
 
   cand <- list.files(dir, pattern = "\\.(shp|mif)$", recursive = TRUE,

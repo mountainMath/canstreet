@@ -110,11 +110,14 @@ test_that("an Abacus vintage resolves file ids through the dataset manifest", {
   cache <- withr::local_tempdir()
   src <- cs_source(1996)
   write_abacus_manifest(cache, src$resource, list(
-    abacus_file(68308, "gsnf001r_shp.zip"),
-    # Other members of the same dataset that the pattern must exclude.
-    abacus_file(68309, "gsnf001r_e00.zip"),
-    abacus_file(68310, "gsnf002r_shp.zip"),
-    abacus_file(68311, "readme.txt")))
+    abacus_file(68308, "gsnf001r_e00.zip"),
+    # Other members of the same dataset that the pattern must exclude: the
+    # derived shapefiles, the block and hydrography polygons of the same unit,
+    # and the documentation.
+    abacus_file(68309, "gsnf001r_shp.zip"),
+    abacus_file(68310, "gsnf002r_e00.zip"),
+    abacus_file(68311, "gsnf001s_e00.zip"),
+    abacus_file(68312, "readme.txt")))
 
   local_mocked_bindings(
     cs_download = function(url, destfile, quiet = FALSE, ...) {
@@ -124,7 +127,7 @@ test_that("an Abacus vintage resolves file ids through the dataset manifest", {
 
   out <- canstreet_download(1996, quiet = TRUE, cache_path = cache)
 
-  expect_equal(out$filename, c("gsnf001r_shp.zip", "gsnf002r_shp.zip"))
+  expect_equal(out$filename, c("gsnf001r_e00.zip", "gsnf002r_e00.zip"))
   expect_match(out$url[1], "/api/access/datafile/68308$")
   expect_true(all(file.exists(out$path)))
   expect_equal(out$vintage, c(1996L, 1996L))
@@ -134,7 +137,7 @@ test_that("restricted Abacus files are refused rather than fetched", {
   cache <- withr::local_tempdir()
   src <- cs_source(1996)
   write_abacus_manifest(cache, src$resource,
-                        list(abacus_file(1, "gsnf001r_shp.zip",
+                        list(abacus_file(1, "gsnf001r_e00.zip",
                                          restricted = TRUE)))
 
   local_mocked_bindings(
@@ -145,16 +148,20 @@ test_that("restricted Abacus files are refused rather than fetched", {
                "access-restricted")
 })
 
-test_that("the 1991 exclusions keep the Lambert twins out", {
+test_that("the 1991 pattern takes the coverages, not the derived files", {
   cache <- withr::local_tempdir()
   src <- cs_source(1991)
   write_abacus_manifest(cache, src$resource, list(
-    abacus_file(1, "GSNF205_shp.zip"),
-    # LSNF205 and OT_HULL are the same networks in Lambert; importing both
-    # would double-count Halifax and Ottawa-Hull.
-    abacus_file(2, "LSNF205_shp.zip"),
-    abacus_file(3, "HULL_OTT_shp.zip"),
-    abacus_file(4, "OT_HULL_shp.zip")))
+    abacus_file(1, "net_hali.zip"),
+    abacus_file(2, "net_othu.zip"),
+    # The same networks as shapefiles, as MapInfo tables and as GeoJSON --
+    # including the LSNF205 and OT_HULL Lambert twins, which would
+    # double-count Halifax and Ottawa-Hull if a pattern ever let them in.
+    abacus_file(3, "GSNF205_shp.zip"),
+    abacus_file(4, "LSNF205_shp.zip"),
+    abacus_file(5, "OT_HULL_shp.zip"),
+    abacus_file(6, "gsnf205_mapinfo.zip"),
+    abacus_file(7, "GSNF205_geojson.geojson")))
 
   local_mocked_bindings(
     cs_download = function(url, destfile, quiet = FALSE, ...) {
@@ -162,5 +169,5 @@ test_that("the 1991 exclusions keep the Lambert twins out", {
     })
 
   out <- canstreet_download(1991, quiet = TRUE, cache_path = cache)
-  expect_equal(out$filename, c("GSNF205_shp.zip", "HULL_OTT_shp.zip"))
+  expect_equal(out$filename, c("net_hali.zip", "net_othu.zip"))
 })

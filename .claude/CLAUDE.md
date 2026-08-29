@@ -60,8 +60,10 @@ Data flows manifest → download → harmonize → DuckDB → lazy `tbl`. One mo
 
 **Sources.** Statistics Canada serves 2001 and 2005–2025 directly; 1976, 1981, 1991 and 1996 come
 from the Abacus Data Network (UBC), whose Dataverse API needs no credentials for the
-`statcan-public` collection. 1976 (`hdl:11272.1/AB2/MESORS`) and 1981 (`hdl:11272.1/AB2/K0EZ55`) are
-British Columbia only — two flat files each, `bc.data` and `vancouver.data`, producer Statistics
+`statcan-public` collection. 1991 and 1996 are taken as the **ArcInfo interchange coverages**
+(`net_*.zip` and `gsnf*r_e00.zip`), not as the shapefiles the same deposits derive from them — see
+*The Abacus shapefiles are a bad conversion* below. 1976 (`hdl:11272.1/AB2/MESORS`) and 1981
+(`hdl:11272.1/AB2/K0EZ55`) are British Columbia only — two flat files each, `bc.data` and `vancouver.data`, producer Statistics
 Canada, licence NONE, no restricted files, so they are *not* the DMTI collection the prohibition
 below covers.
 The series' own history is set out in the 2006 Census Dictionary note on the road network file
@@ -198,10 +200,14 @@ established patterns rather than inventing new ones.
   The sheet is part of `source_id`, and even then 22 collisions remain in 1981's `bc.data`, whose
   six Victoria sheet headers are filed together ahead of their data rather than each ahead of its
   own. `(source_file, source_id)` is the key.
-- **The 1991/1996 `.prj` is degenerate** (`GEOGCS["Unknown", DATUM["D_NAD_27_Canada", ...]]`); assign
-  EPSG:4267 explicitly.
-- **1991 ships Lambert twins**: `LSNF*` and `OT_HULL` duplicate `GSNF*` and `HULL_OTT`. The manifest's
-  `file_exclude` keeps them out; without it Halifax and Ottawa-Hull double-count.
+- **The 1991/1996 coverages declare no usable CRS**: 1991 reads back as untagged `GEOMETRY`, 1996 as
+  `EPSG:4008`, which is the Clarke 1866 *ellipsoid*, not a datum. (The shapefiles the deposit derives
+  from them carry an equally degenerate `GEOGCS["Unknown", DATUM["D_NAD_27_Canada", ...]]`.) Assign
+  EPSG:4267 explicitly, as the manifest does.
+- **1991 ships Lambert twins**, but only in its derived formats: `LSNF205` and `OT_HULL` duplicate
+  `GSNF205` (Halifax) and `HULL_OTT` (Ottawa-Hull) as shapefiles, MapInfo tables and GeoJSON. The
+  coverage set has 51 `net_*.zip` and no twins, so `file_pattern` alone keeps them out and
+  `file_exclude` is `NA` — do not reintroduce a twin by widening that pattern.
 - **2001 now comes from StatCan**, not Abacus, and the file to take is `grnf000r01m_e.zip` under the
   2011 `rnf-frr/files-fichiers/` path. The `…01g…`, `lrnf…01a…` and `…01a_f` spellings all return the
   soft-404 signature, as do the equivalent 1991 and 1996 paths — so only 2001 moves. The old Abacus
@@ -243,15 +249,27 @@ established patterns rather than inventing new ones.
   all 2,053,112 rows, and there is `rank1`–`rank4` rather than a plain `rank` — those are the four
   skeletal levels of detail, per the download page's own description of the Skeletal file — so `rank`
   stays NULL for 2001.
-- **`cs_coverage_to_shapefile()` is now legacy, and deliberately kept.** No vintage in the manifest
-  reaches it; `cs_resolve_line_source()` still dispatches to it on a `.e00`, so a future release that
-  ships a coverage still works. If you go back to it, two things cost real time the first time round.
-  Its `.dbf` is Latin-1 and GDAL will not tell you: `LC_ALL=C grep` reported no high bytes — wrongly,
-  that shell's `grep` is `ugrep`; `LC_ALL=C tr -dc '\200-\377' | wc -c` finds **60,918**, mostly
-  `0xE9`. And AVCE00 has **no open options at all**, so no `ENCODING` reaches the driver; the
-  conversion writes `-lco ENCODING=` (empty) to keep the raw bytes and emit no `.cpg`, which is
-  exactly the file every other RNF vintage ships. Let GDAL write its default `.cpg` instead and it
-  labels the bytes UTF-8, and the first accented street name aborts the scan.
+- **A coverage is read directly, and staged first.** `cs_resolve_line_source()` hands a `.e00` to
+  `cs_e00_stage()`, which writes one repaired copy under `canstreet_staged/` keeping the original
+  filename — so `source_file` records `NET_TORO.E00`, a file the deposit actually contains — and
+  `cs_st_read_sql()` then adds `layer = 'ARC'`, because a coverage names its layers after their
+  geometry (`ARC` the network, `PAL`/`CNT`/`LAB` the polygon side) and `ST_Read` would otherwise take
+  whichever comes first. There is no `ogr2ogr` conversion step any more: DuckDB reads the 51 1991
+  coverages in 143 s, and a whole vintage imports in about four minutes. (The old converter existed
+  because 2001's 1.5 GB ArcGIS coverage scanned at ~230 arcs a second; these are two orders of
+  magnitude smaller and 2001 comes from StatCan in MapInfo now.)
+- **GDAL opens the first volume of a multi-volume coverage and says nothing.** 1991 ships its larger
+  units as `NET_TORO.E00` beside `.E01` … `.E11`, and `ogrinfo` on the `.E00` alone reports 27,327 of
+  Toronto's 82,725 arcs with a matching extent — a plausible number, no warning. The split is by byte
+  count, so `cs_e00_stage()` concatenates the volumes in extension order. Volume count does not
+  predict it: Calgary (4 volumes) and Québec (5) read whole without being joined, six other units do
+  not, so always join.
+- **AVCE00 has no open options at all**, so no `ENCODING` reaches the driver and a byte above 0x7F
+  arrives in DuckDB as an invalid UTF-8 string. It cannot be recoded either: the interchange format
+  is ASCII text in fixed-width fields, so widening one byte to two shifts every field after it on
+  that line. `cs_e00_ascii` folds the Latin-1 supplement to one ASCII byte each instead. Across the
+  whole 1991 and 1996 corpus exactly one byte is affected — the `0xA0` in Toronto's `EA\xa096`, an
+  enumeration-area label, which becomes the ordinary space it stands for.
 - **Never use the 2025 GeoPackage** — 13 CircularStrings that DuckDB's spatial extension rejects.
   Always take the `a` (shapefile) variant.
 - **DuckDB spatial 1.5.4 has no `ST_Hausdorff`, `ST_FrechetDistance`, `ST_MaxDistance`, `ST_Split`,
@@ -340,32 +358,46 @@ Established by reading the actual files, not the documentation. Trust these over
   1,736,503 km as read, 1,329,337 km once the non-road classes above are dropped.
 - **1991's class vocabulary is a strict subset of 1996's**, so `cs_snf_road_classes()` — calibrated on
   1996 — needs no extension for it: nothing appears in 1991 that 1996 lacks, and 1996 adds only `GJA`,
-  `GCO`, `U`, `GCH`. 1991 imports 160,778 km, of which `roads_only` keeps 503,464 arcs / 104,294 km
-  and drops 96,161 arcs / 56,485 km — the same ~35% as 1996, and verifiably not road: `RSI`/`RMU`/`RSG`
+  `GCO`, `U`, `GCH`. 1991 imports 160,778 km, of which `roads_only` keeps 503,469 arcs / 104,296 km
+  and drops 96,156 arcs / 56,482 km — the same ~35% as 1996, and verifiably not road: `RSI`/`RMU`/`RSG`
   are the CNR and CPR mains and yards, `Z` is literally named `POWER LINE 001`, `W` watercourse (10,766
   km), `CEA` the census EA boundary. Its geometry checks out too: 93% of ordinary-street midpoints lie
   within 40 m of a 2021 arc, and the national extent is lon −124.5…−52.7, lat 42.1…54.0.
-- **`arc_id` is unique only within a source file for 1991.** 599,625 arcs carry 414,771 identifiers but
-  only 414,367 distinct values, because the SNF ships one shapefile per urban area and numbers each
-  from scratch; `(source_file, source_id)` is unique. 1996 happens not to collide. Never join an SNF
-  vintage on `source_id` alone.
-- **The SNF is unaccented ASCII** — 0 accented names in 1991, exactly 1 in 1996 — so the Latin-1 `.dbf`
-  problem is an RNF matter only, never an SNF one.
+- **The Abacus shapefiles are a bad conversion, which is why the manifest takes the coverages.**
+  Both 1991 and 1996 deposit the ArcInfo interchange coverages *and* shapefiles derived from them,
+  and for 1991 the derivation is broken. Four units — Halifax (`GSNF205`), Chicoutimi-Jonquière,
+  Montréal and Toronto — ship no `ARC_ID` column at all, and in them every field after a street name
+  containing a comma is shifted one position, because the conversion went through a CSV step that
+  never quoted: 13,593 arcs / 2,309 km carry a `class` that is really the tail of a name, and 2,344
+  more have had an apostrophe deleted outright. `HULL_OTT` merged `CLASS` and `TYPE` into one column
+  and blanked 345 `Z…` names. 1996's shapefiles are faithful field for field — it was switched over
+  as a matter of principle, not to fix anything. Reading the coverages directly costs nothing and
+  fixes all of it: the arc counts and total length are unchanged (599,625 / 160,778 km and
+  629,574 / 167,238 km), every arc now carries an identifier, and `roads_only` gains exactly the five
+  arcs the audit predicted.
+- **`arc_id` is unique only within a source file.** The SNF ships one coverage per urban area and
+  numbers each from scratch: 1991's 599,625 arcs all carry an identifier but only 599,038 distinct
+  values, 1996's 629,574 only 628,124. `(source_file, source_id)` is unique in both. Never join an
+  SNF vintage on `source_id` alone. (Before the switch to the coverages, four 1991 units had no
+  identifier column at all, so only 414,771 arcs carried one — that is fixed, not a different fact.)
+- **The SNF is unaccented ASCII** — not one non-ASCII character survives in either vintage's `name`,
+  and the single high byte in the source files is the non-breaking space `cs_e00_ascii` folds — so
+  the Latin-1 problem is an RNF matter only, never an SNF one.
 - **The SNF `NAME` field is fixed-width and packs a status suffix**, which survives `trim()` as a run
   of interior spaces: `CLAIRVIEW      PROP.` (proposed), `DESAUTELS     PROJ.` (projected, i.e. not
   built in that year), `CAMBRIAN      PRIV.` (private), plus French article and qualifier tokens (`DU`,
   `FR`, `VI`, `LR`, `VP`, `FA`) and bare direction letters. `TYPE` and `DIRECTION` are separate and
   populated independently, so this is not a mis-parse — `J.A. PARE     PROJ.` carries `TYPE = BV`. It
-  affects 11,180 of 1991's 579,675 named arcs (1.9%) and 1,399 of 1996's (0.2%). Two consequences: the
-  packed names never match a modern `name_fold`, and ~2,000 `PROP.`/`PROJ.` arcs are roads that did not
-  exist in the year that carries them.
+  affects 13,340 of 1991's 580,020 named arcs (2.3%) and 1,399 of 1996's 609,009 (0.2%). Two
+  consequences: the packed names never match a modern `name_fold`, and ~2,000 `PROP.`/`PROJ.` arcs
+  are roads that did not exist in the year that carries them.
 - **The 1991/1996 SNF is a full topographic base, not a road network.** `class IS NULL` is an ordinary
-  street (503,150 arcs in 1996; 96% of arcs are typed, 76% addressed); a non-null `class` names a
+  street (502,150 arcs in 1996, of which 96% are typed and 76% addressed); a non-null `class` names a
   *feature type*, of which only twelve are roads — see `cs_snf_road_classes()`. Watercourses, rail,
-  hydro lines, EA boundaries and the outlines of parks, golf courses and airports account for roughly
-  51,000 of the 1996 file's ~160,000 km. Leaving them in reports every river as a retired road: the
-  Calgary pilot's implausible "retired 1996 road" fell from 56.6 km to 2.60 km once they were
-  filtered. Bridge arcs were checked and do *not* duplicate the street underneath.
+  hydro lines, EA boundaries and the outlines of parks, golf courses and airports account for 58,003
+  of the 1996 file's 167,238 km (1991: 56,482 of 160,778). Leaving them in reports every river as a
+  retired road: the Calgary pilot's implausible "retired 1996 road" fell from 56.6 km to 2.60 km once
+  they were filtered. Bridge arcs were checked and do *not* duplicate the street underneath.
 - **2001's line layer carries the census boundary topology too**, which is that vintage's equivalent
   of the SNF problem — and the 2006 Census Dictionary note confirms it was deliberate: "For 2001, the
   road network files contained both road and boundary arcs". Its `class` is mostly a numeric feature code (1011 is the ordinary street, 688,063
