@@ -15,6 +15,15 @@ feed each one. Useful when working out what a given vintage actually carries:
 a column absent from a vintage's source files is \code{NA} throughout it rather
 than missing from the table.
 }
+\details{
+The \code{type} given for \code{class} and \code{rank} is the type they are read from the
+source files as. Both are stored as a labelled \code{ENUM} and come back as a
+factor for the vintages whose vocabulary Statistics Canada published; see
+\code{\link[=canstreet_domains]{canstreet_domains()}}.
+}
 \examples{
 canstreet_schema()
+}
+\seealso{
+\code{\link[=canstreet_domains]{canstreet_domains()}} for the \code{class} and \code{rank} vocabularies.
 }

@@ -23,7 +23,7 @@ cs_storage_crs <- function() "EPSG:3347"
 #' cache written by an older version can be recognised and rebuilt.
 #' @keywords internal
 #' @noRd
-cs_schema_version <- function() 1L
+cs_schema_version <- function() 2L
 
 cs_db_path <- function(cache_path) {
   file.path(cs_cache_dir(cache_path), "canstreet.duckdb")

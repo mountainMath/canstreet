@@ -183,3 +183,136 @@ write_fixture_grid <- function(con, n = 60, offset = 8, shift = c(0, 0)) {
   write_fixture_arcs(con, 2021, new)
   invisible(c(1996L, 2021L))
 }
+
+
+# --- Area Master File fixtures -----------------------------------------------
+
+# One AMF record as a vector of byte values, built by placing fields at their
+# 1-based columns; everything else stays blank. A field is either a string or,
+# for a packed coordinate, a vector of byte values already.
+amf_rec <- function(width, ...) {
+  r <- rep(0x20L, width)
+  for (f in list(...)) {
+    v <- f[[2]]
+    if (is.character(v)) v <- utf8ToInt(v)
+    if (length(v)) r[f[[1]] + seq_along(v) - 1L] <- v
+  }
+  r
+}
+
+# Encode a coordinate the way the 1981 file does: seven digits packed two to
+# the byte with a sign nibble, as EBCDIC, then mapped back into the Latin-1
+# bytes the deposit ships. `cs_amf_ebcdic_table()` is the forward map, so the
+# fixture inverts it rather than carrying a second table.
+amf_pack <- function(v) {
+  d <- as.integer(strsplit(sprintf("%07d", v), "")[[1]])
+  eb <- c(d[1] * 16L + d[2], d[3] * 16L + d[4],
+          d[5] * 16L + d[6], d[7] * 16L + 12L)
+  match(eb, as.integer(cs_amf_ebcdic_table())) - 1L
+}
+
+# The same logical file in either layout: the two must parse to the identical
+# answer. See test-amf.R for what each piece is there to prove.
+write_fixture_amf <- function(dir, packed) {
+  lay <- cs_amf_layout(packed)
+  w <- lay$width
+  coord <- if (packed) amf_pack else function(v) sprintf("%07d", v)
+  # A coordinate that is not there is a run of EBCDIC blanks: in 1981 those
+  # are the bytes themselves, and in 1976 they are the digits they unpack to.
+  blank <- if (packed) rep(0x20L, 4L) else "4040404"
+
+  fid <- function(feature, seq_no) sprintf("%09d", feature * 1000L + seq_no)
+  sheet_hd <- function(zone, name) {
+    amf_rec(w, list(1L, "9330"), list(9L, fid(0L, 0L)),
+            list(37L, sprintf("%02d", zone)), list(39L, name))
+  }
+  area_hd <- function(area, name) {
+    amf_rec(w, list(1L, "9330"), list(5L, area), list(9L, fid(0L, 1L)),
+            list(22L, name))
+  }
+  feat_hd <- function(area, feature, name, type = "ST") {
+    amf_rec(w, list(1L, "9330"), list(5L, area), list(9L, fid(feature, 0L)),
+            list(27L, name), list(47L, type))
+  }
+  node <- function(area, feature, seq_no, x, y, chain = " ", class = "",
+                   node = "0001", to_l = "", to_r = "",
+                   from_l = "", from_r = "", xref = 12010L) {
+    a <- lay$addr
+    r <- lay$ref
+    rw <- if (packed) 4L else 7L
+    # Every node in the real files carries two block reference points and a
+    # cross-street reference, which is what makes the records reach full width.
+    ref <- if (is.na(x)) rep(list(blank), 4L) else
+      lapply(c(x - 40L, y - 40L, x + 40L, y + 40L), coord)
+    amf_rec(w, list(1L, "9330"), list(5L, area),
+            list(9L, fid(feature, seq_no)), list(18L, class),
+            list(27L, node), list(31L, chain),
+            list(lay$x[1], if (is.na(x)) blank else coord(x)),
+            list(lay$y[1], if (is.na(y)) blank else coord(y)),
+            list(a, to_l), list(a + 5L, to_r),
+            list(a + 10L, from_l), list(a + 15L, from_r),
+            list(r, ref[[1]]), list(r + rw, ref[[2]]),
+            list(r + 2L * rw, ref[[3]]), list(r + 3L * rw, ref[[4]]),
+            list(lay$xr_area[1], area),
+            list(lay$xr_id[1], sprintf("%09d", xref)),
+            list(lay$xr_name[1], "CROSS"), list(lay$xr_type[1], "ST"))
+  }
+
+  recs <- list(
+    sheet_hd(10L, "SHEET ONE"),
+    area_hd("5915", "VANCOUVER"),
+
+    # A three-node chain: two segments, each taking its `from` addresses from
+    # the node it starts at and its `to` addresses from the node it ends at.
+    feat_hd("5915", 12L, "MAIN"),
+    node("5915", 12L, 10L, 425833L, 5458561L, chain = "B", node = "0011",
+         from_l = "  100", from_r = "  101"),
+    node("5915", 12L, 20L, 425933L, 5458561L, node = "0012",
+         to_l = "  198", to_r = "  199", from_l = "  200", from_r = "  201"),
+    node("5915", 12L, 30L, 426033L, 5458561L, chain = "E", node = "0013",
+         to_l = "  298", to_r = "  299"),
+
+    # Filed out of sequence and split into two chains: sorting must restore the
+    # order, and no segment may bridge the `E`/`B` break.
+    feat_hd("5915", 13L, "OAK", type = "AV"),
+    node("5915", 13L, 40L, 426333L, 5458761L, chain = "B", node = "0024"),
+    node("5915", 13L, 10L, 426133L, 5458561L, chain = "B", node = "0021"),
+    node("5915", 13L, 50L, 426433L, 5458761L, chain = "E", node = "0025"),
+    node("5915", 13L, 20L, 426233L, 5458561L, chain = "E", node = "0022"),
+
+    # A node with no coordinate, and a coordinate repeated: neither can make a
+    # segment.
+    feat_hd("5915", 14L, "CAMBIE"),
+    node("5915", 14L, 10L, 426533L, 5458561L, chain = "B", node = "0031"),
+    node("5915", 14L, 20L, NA, NA, node = "0032"),
+    node("5915", 14L, 30L, 426633L, 5458561L, node = "0033"),
+    node("5915", 14L, 40L, 426633L, 5458561L, chain = "E", node = "0034"),
+
+    # Classed features: one road, one not.
+    feat_hd("5915", 15L, "TRANS CANADA HIGHWAY", type = ""),
+    node("5915", 15L, 10L, 426733L, 5458561L, chain = "B", class = "HN"),
+    node("5915", 15L, 20L, 426833L, 5458561L, chain = "E", class = "HN"),
+    feat_hd("5915", 16L, "BRUNETTE RIVER", type = ""),
+    node("5915", 16L, 10L, 426933L, 5458561L, chain = "B", class = "WN"),
+    node("5915", 16L, 20L, 427033L, 5458561L, chain = "E", class = "WN"),
+
+    # A second sheet reusing the area and feature numbers of the first, which
+    # is what makes the sheet part of the identifier.
+    sheet_hd(10L, "SHEET TWO"),
+    area_hd("5915", "BURNABY"),
+    feat_hd("5915", 12L, "MAIN"),
+    node("5915", 12L, 10L, 427133L, 5458561L, chain = "B"),
+    node("5915", 12L, 20L, 427233L, 5458561L, chain = "E")
+  )
+
+  path <- file.path(dir, paste0(if (packed) "1981" else "1976", "_fx.data"))
+  con <- file(path, "wb")
+  on.exit(close(con), add = TRUE)
+  for (r in recs) {
+    # The real files strip trailing blanks, so the fixture does too -- which is
+    # what puts the reader's padding under test.
+    keep <- rev(cumsum(rev(r != 0x20L))) > 0L
+    writeBin(c(as.raw(r[keep]), as.raw(0x0a)), con)
+  }
+  path
+}

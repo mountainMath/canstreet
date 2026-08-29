@@ -119,8 +119,17 @@ cs_tnet_stage_name <- function(vintage, kind) {
 #' @noRd
 cs_tnet_stage <- function(con, vintage, region = NULL, roads_only = TRUE,
                           name_far_m = 0) {
+  # `class` and `rank` are labelled ENUMs in the vintages that have a published
+  # domain (`cs_class_domain()`), and the ENUM differs from vintage to vintage,
+  # so they are cast back to VARCHAR as they are staged: a build unions arcs
+  # from several vintages into one table, and two unequal ENUM types would have
+  # to be reconciled somewhere. Downstream reads from the staged tables, so this
+  # is the only place that needs it.
   attrs <- cs_target_schema()$column
-  cols <- paste(DBI::dbQuoteIdentifier(con, attrs), collapse = ", ")
+  cols <- paste(vapply(attrs, function(a) {
+    q <- as.character(DBI::dbQuoteIdentifier(con, a))
+    if (a %in% c("class", "rank")) paste0(q, "::VARCHAR AS ", q) else q
+  }, character(1)), collapse = ", ")
   src <- DBI::dbQuoteIdentifier(con, cs_table_name(vintage))
 
   match_tbl <- cs_tnet_stage_name(vintage, "match")

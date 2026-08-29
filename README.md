@@ -173,6 +173,7 @@ vintages.
 
 | Vintages | Product | Coverage | Source |
 |---|---|---|---|
+| 1976, 1981 | Area Master File | British Columbia, urban | Abacus Data Network (UBC) |
 | 1991, 1996 | Street Network File | Large urban centres | Abacus Data Network (UBC) |
 | 2001 | Road Network File (92F0157GIE) | National | Statistics Canada |
 | 2005-2025 | Road Network File (92-500-X) | National | Statistics Canada |
@@ -182,10 +183,21 @@ File](https://www12.statcan.gc.ca/census-recensement/2011/ref/dict/geo041-eng.cf
 gives the official account of the series and its coverage by census year: road
 network files covering the entire country for 2011, 2006 and 2001; street
 network files covering large urban centres for 1996; and area master files, also
-urban only, for 1991 and every census back to 1971. Vintages before 1991 are not
-yet available here -- no digital file for 1971 through 1986 could be located in
-an accessible repository -- and the package's source manifest is a plain data
-table, so earlier years can be added without code changes.
+urban only, for 1991 and every census back to 1971. Of those area master files,
+the 1976 and 1981 British Columbia deposits are here; no digital file for 1971
+or 1986 could be located in any accessible repository. The package's source
+manifest is a plain data table, so further years and provinces can be added
+without code changes.
+
+The area master files are not a GIS format and no GDAL driver reads them: they
+are mainframe flat files, one fixed-width record per line, describing each
+street as a chain of nodes in NAD27 UTM. `read_amf()` parses either release --
+1976 writes its coordinates as text, 1981 is an EBCDIC original whose
+coordinates are packed decimal -- into block-face segments carrying the street
+name, the feature class and the civic address range on each side. They import
+like any other vintage, and their geometry stands up: 89-92% of their road
+length has a 1991 Street Network File arc within 20 m of its midpoint, and
+95-96% within 40 m.
 
 Two caveats from that page carry straight into any analysis of change over time.
 Statistics Canada states that **"topological accuracy takes precedence over
@@ -197,11 +209,14 @@ files are **not routable** -- there is no one-way, turn-restriction or
 dead-end information, and address ranges may be imputed rather than observed.
 
 One thing the dictionary does not say, established here by reading the files:
-the early vintages carry more than roads. The 1991 and 1996 Street Network Files
-are a full topographic base rather than a road network -- watercourses,
+the early vintages carry more than roads. The area master files and the 1991 and
+1996 Street Network Files are a full topographic base rather than a road
+network -- watercourses,
 railways, hydro lines, census-boundary arcs and the outlines of parks, golf
 courses and airports are all carried as arcs, about a third of the 1996 file's
-160,000 km. 2001 ships as an ArcInfo coverage whose arc layer carries the
+160,000 km and a comparable share of each area master file: shorelines,
+municipal boundaries and creeks account for 2,283 of 1976's 8,857 km and 5,011
+of 1981's 15,508 km. 2001 ships as an ArcInfo coverage whose arc layer carries the
 boundary topology of the census geography alongside the network, another 388,345
 km, every provincial border and coastline among it. `get_road_network()` returns
 all of it as it comes; `build_temporal_network()` drops it by default, because
@@ -213,6 +228,21 @@ Segments from every vintage are harmonized onto one schema -- see
 `canstreet_schema()` -- and all geometry is stored in EPSG:3347 (NAD83 /
 Statistics Canada Lambert), so `len_m` and any distance computed from the
 geometry are in metres regardless of the vintage's own coordinate system.
+
+The two coded columns, `class` and `rank`, are stored as labels rather than as
+the codes the source files carry, so a road classed `23` comes back as `Local`.
+Statistics Canada publishes the vocabulary once per census year and it genuinely
+changes between them -- 2016 defines class `95` as a second "Unknown", 2021
+retires it and adds `87` for winter roads, 2001 uses a numeric vocabulary with
+no code in common with 2011 onward, and the 1991 and 1996 Street Network Files
+classify *features* rather than roads -- so the label a code gets depends on the
+vintage it came from. `canstreet_domains()` returns the tables, which is what
+you need to go back from a label to a code. The vocabularies are read from
+primary sources: the reference guide shipped inside each Road Network File
+archive, the Street Network File User Guide from the Abacus deposit, and the
+2021 Census attribute domain values page. Where no vocabulary was ever
+published -- 2005 to 2010, and the two area master files -- the codes are kept
+as they are.
 
 ## Attribution
 

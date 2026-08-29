@@ -117,6 +117,84 @@ cs_harmonize_sql <- function(con, path, src, table) {
     "WHERE st_geometrytype(geom) IN ('LINESTRING', 'MULTILINESTRING');")
 }
 
+#' Build the INSERT that harmonizes one map sheet's AMF segments
+#'
+#' The Area Master Files never pass through `ST_Read`: they are parsed in R and
+#' staged as a registered data frame carrying a WKT column, so this is the
+#' alias table's counterpart for a source whose column names are fixed by
+#' [cs_amf_segments()] rather than discovered. It is still generated from
+#' [cs_target_schema()] so that a column added there cannot be forgotten here.
+#'
+#' One statement per UTM zone, because a zone is a different CRS and
+#' `ST_SetCRS` needs a constant -- the same reason [cs_to_storage_sql()] builds
+#' its SQL in R.
+#'
+#' @param con A DuckDB connection.
+#' @param stage Name of the registered staging relation.
+#' @param src A one-row source manifest entry.
+#' @param table Destination table.
+#' @param path Source file, recorded as `source_file`.
+#' @param epsg The zone CRS this statement covers.
+#' @return A SQL string.
+#' @keywords internal
+#' @noRd
+cs_amf_harmonize_sql <- function(con, stage, src, table, path, epsg) {
+  # The AMF has no segment identifier of its own, no rank, and no census
+  # geography beyond the area the record sits in. Its area code is a 1976-era
+  # subdivision code rather than a modern `CSDUID`, so only the name it comes
+  # with is carried across; the province is the one region code that has not
+  # moved, and these files are British Columbia alone.
+  mapped <- c(source_id = "source_id", name = "name", type = "type",
+              dir = "dir", af_l = "af_l", at_l = "at_l", af_r = "af_r",
+              at_r = "at_r", class = "class",
+              csdname_l = "area_name", csdname_r = "area_name",
+              pruid_l = "'59'", pruid_r = "'59'")
+  schema <- cs_target_schema()
+  exprs <- vapply(seq_len(nrow(schema)), function(i) {
+    col <- schema$column[i]
+    if (col %in% names(mapped)) mapped[[col]]
+    else paste0("CAST(NULL AS ", schema$type[i], ")")
+  }, character(1))
+
+  geom <- cs_to_storage_sql("st_geomfromtext(wkt)", epsg)
+
+  paste0(
+    "INSERT INTO ", DBI::dbQuoteIdentifier(con, table), " SELECT\n",
+    "  ", src$vintage, " AS vintage,\n",
+    "  ", DBI::dbQuoteString(con, basename(path)), " AS source_file,\n",
+    paste0("  ", exprs, " AS ",
+           DBI::dbQuoteIdentifier(con, schema$column), collapse = ",\n"), ",\n",
+    "  st_length(", geom, ") AS len_m,\n",
+    "  ", geom, " AS geom\n",
+    "FROM ", DBI::dbQuoteIdentifier(con, stage), "\n",
+    "WHERE epsg = ", as.integer(epsg), ";")
+}
+
+#' Import one Area Master File into a vintage table
+#'
+#' @param con A writable DuckDB connection.
+#' @param path The `.data` file.
+#' @param src A one-row source manifest entry.
+#' @param table Destination table.
+#' @return The number of segments inserted.
+#' @keywords internal
+#' @noRd
+cs_import_amf_file <- function(con, path, src, table) {
+  segs <- cs_amf_segments(cs_amf_nodes(path))
+  if (!nrow(segs)) return(0L)
+
+  stage <- "cs_amf_stage"
+  duckdb::duckdb_register(con, stage, as.data.frame(segs))
+  on.exit(duckdb::duckdb_unregister(con, stage), add = TRUE)
+
+  n <- 0L
+  for (epsg in sort(unique(segs$epsg))) {
+    n <- n + DBI::dbExecute(
+      con, cs_amf_harmonize_sql(con, stage, src, table, path, epsg))
+  }
+  n
+}
+
 #' Import one vintage into the database
 #'
 #' @inheritParams canstreet_download
@@ -137,19 +215,29 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
   DBI::dbExecute(con, cs_create_table_sql(con, table))
 
   for (i in seq_len(nrow(archives))) {
-    exdir <- cs_extract(archives$path[i])
-    on.exit(unlink(exdir, recursive = TRUE), add = TRUE)
-    shps <- cs_resolve_line_source(exdir)
-    for (shp in shps) {
-      DBI::dbExecute(con, cs_harmonize_sql(con, shp, src, table))
+    if (identical(src$archive, "none")) {
+      # The Area Master Files are bare files, not archives, and no reader in
+      # DuckDB or GDAL opens them; `R/amf.R` parses them into segments here.
+      cs_import_amf_file(con, archives$path[i], src, table)
+    } else {
+      exdir <- cs_extract(archives$path[i])
+      on.exit(unlink(exdir, recursive = TRUE), add = TRUE)
+      shps <- cs_resolve_line_source(exdir)
+      for (shp in shps) {
+        DBI::dbExecute(con, cs_harmonize_sql(con, shp, src, table))
+      }
+      unlink(exdir, recursive = TRUE)
     }
-    unlink(exdir, recursive = TRUE)
     if (nrow(archives) > 1L && !quiet && i %% 10L == 0L) {
       message("  ", i, "/", nrow(archives), " archives")
     }
   }
 
   cs_normalize_address_ranges(con, table)
+  # After every archive, never per archive: the ENUM is declared over the
+  # values the finished table holds, and a Street Network File vintage
+  # arrives as 51 shapefiles into one table.
+  labelled <- cs_label_vintage(con, table, src$vintage)
 
   n <- DBI::dbGetQuery(con, paste0(
     "SELECT count(*) AS n FROM ", DBI::dbQuoteIdentifier(con, table)))$n[1]
@@ -181,7 +269,13 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
   cs_meta_write(con, src$vintage, list(
     schema_version = as.character(cs_schema_version()),
     crs = cs_storage_crs(),
-    source_crs = paste0("EPSG:", src$crs),
+    source_crs = if (identical(src$product, "AMF")) {
+      # One CRS per map sheet, so the column would be a lie; the datum is what
+      # is constant.
+      paste0("EPSG:", src$crs, " (NAD27, projected per map sheet)")
+    } else {
+      paste0("EPSG:", src$crs)
+    },
     product = src$product,
     catalogue = src$catalogue %||% NA_character_,
     host = src$host,
@@ -192,6 +286,11 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
     package_version = as.character(utils::packageVersion("canstreet")),
     imported_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
     licence = "Statistics Canada Open Licence",
+    labelled_columns = if (length(labelled)) {
+      paste(labelled, collapse = ", ")
+    } else {
+      NA_character_
+    },
     notes = src$notes %||% NA_character_
   ))
   cs_rebuild_segments_view(con)

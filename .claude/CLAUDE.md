@@ -44,6 +44,8 @@ Data flows manifest → download → harmonize → DuckDB → lazy `tbl`. One mo
 | `R/sources.R` | **The manifest.** One row per vintage; every other module reads it. Adding a vintage is a data edit here, not a code change. |
 | `R/download.R` | `canstreet_download()`, archive extraction |
 | `R/abacus.R` | Dataverse manifest resolution and file access for the pre-2005 vintages |
+| `R/amf.R` | The Area Master File reader: record layout, COMP-3, chains, `read_amf()` |
+| `R/domains.R` | The published `class`/`rank` vocabularies, per vintage, and the `ENUM` retyping |
 | `R/db.R` | Connection cache, spatial extension, storage CRS, metadata table, `segments` view |
 | `R/import.R` | The harmonizer: target schema, alias resolution, address normalization |
 | `R/api.R` | `get_road_network()`, `collect_road_network()`, `export_road_network()`, `canstreet_schema()` |
@@ -52,9 +54,12 @@ Data flows manifest → download → harmonize → DuckDB → lazy `tbl`. One mo
 | `R/tnet.R` | The cross-vintage matcher: calibration, spine cascade, interval cutting, emit |
 | `R/tnet_api.R` | `build_temporal_network()` and the six other `*_temporal_network*()` functions |
 
-**Sources.** Statistics Canada serves 2001 and 2005–2025 directly; only 1991 and 1996 come from the
-Abacus Data Network (UBC), whose Dataverse API needs no credentials for the `statcan-public`
-collection.
+**Sources.** Statistics Canada serves 2001 and 2005–2025 directly; 1976, 1981, 1991 and 1996 come
+from the Abacus Data Network (UBC), whose Dataverse API needs no credentials for the
+`statcan-public` collection. 1976 (`hdl:11272.1/AB2/MESORS`) and 1981 (`hdl:11272.1/AB2/K0EZ55`) are
+British Columbia only — two flat files each, `bc.data` and `vancouver.data`, producer Statistics
+Canada, licence NONE, no restricted files, so they are *not* the DMTI collection the prohibition
+below covers.
 Abacus's DMTI Spatial collection is licence-restricted — **never automate against it.** Borealis has
 no StatCan street/road network files. Nothing digital exists for 1971 or 1986 in any repository
 searched; if those ever arrive it will be as a custom StatCan request that MountainMath hosts.
@@ -68,6 +73,35 @@ what makes `len_m` and every distance metres for every vintage. A temporal build
 to the same file, `tnet_<slug>` and `tnet_<slug>_src`, described in a `canstreet_builds` EAV table —
 kept separate from `canstreet_metadata`, whose key column is `vintage INTEGER` and which
 `cs_db_vintages()` scans.
+
+**`class` and `rank` are stored as labels, not codes.** `R/domains.R` carries the
+published vocabulary for each vintage and `cs_label_vintage()` retypes both columns as a DuckDB
+`ENUM` of labels at the end of `cs_import_vintage()`. Three things make this work:
+
+- **After every archive, never per archive.** The `ENUM` is declared over the values the finished
+  table holds, and an SNF vintage arrives as 51 shapefiles into one table.
+- **The type is the whole vocabulary**, not just the codes observed, so
+  `enum_range(NULL::typeof(class))` *is* the domain. Any code observed but not published is appended
+  and stored bare — a vintage never loses a value because the guide does not explain it.
+- **The road-class filters translate.** `cs_snf_road_classes()` and friends are written in codes,
+  because that is how the guides name them, so `cs_road_class_sql()` puts every list through
+  `cs_class_label()` before emitting SQL. Change one without the other and `roads_only` silently
+  keeps nothing.
+  Comparing an `ENUM` column to a literal outside its vocabulary is legal in DuckDB — `IN` and
+  `NOT IN` both just return no match rather than failing the cast — so a filter naming a code that
+  vintage never uses is harmless.
+
+`cs_tnet_stage()` casts both columns back to `VARCHAR` as it stages, because a build unions arcs
+from several vintages and their `ENUM`s are not the same type — so a `tnet_*` table carries labels
+as plain strings. The `segments` view needs no help: `UNION ALL BY NAME` resolves `ENUM` against
+`VARCHAR` to `VARCHAR` on its own, and `export_road_network()` needs none either — DuckDB writes an
+`ENUM` to Parquet as its labels in a `VARCHAR` column.
+
+**The AMF does not go through the harmonizer's alias table**, because it is not a GIS file and has
+no columns to alias. `cs_import_vintage()` branches on `archive == "none"`, and
+`cs_import_amf_file()` registers the parsed segments as a DuckDB view and inserts them with an
+explicit column map, one INSERT per UTM zone (`ST_SetCRS` needs a constant). Everything downstream
+of the table is identical.
 
 **Harmonization is alias-driven, never era-branched.** The schema eras do not map cleanly onto
 vintages — 2005 spells the identifier `NGD_ID` though its neighbours do not — so `cs_target_schema()`
@@ -120,6 +154,39 @@ established patterns rather than inventing new ones.
   ARC.ADDR_TO_LEFT parsed incompletely to integer 0`). That lands on the zero sentinel
   `cs_normalize_address_ranges()` already clears, so the three warnings are left visible rather than
   muffled — unlike the ten `Normalized/laundered field name` ones, which are expected truncation.
+- **The Area Master File is a mainframe flat file and no driver reads it**, so `R/amf.R` parses it.
+  113-byte records in 1976, 95 in 1981 — the difference is exactly the 18 bytes six coordinate pairs
+  save when packed two digits to the byte (113 − 6 − 12 = 95). Records are stored with trailing
+  blanks stripped.
+- **1981 is EBCDIC and the deposit ships it decoded through code page 037**, so its packed
+  coordinates survive as Latin-1 mojibake. Re-encoding each character back to cp037 restores the
+  original byte (cp037 is a bijection on 0–255), then COMP-3 unpacks it. A blank field is four
+  EBCDIC `0x40`s, whose sign nibble 0 is what makes it decode to `NA`; in 1976 the same blanks are
+  *printed*, so its sentinel is the literal string `4040404`.
+- **Never mark AMF record bytes `latin1` and convert.** R converts through CP1252, where `0x81`,
+  `0x8d`, `0x8f`, `0x90` and `0x9d` are undefined and come back as a multi-character escape, so the
+  string stops being one character per byte and every column-addressed field after the packed
+  coordinate shifts. It hit 18% of the 1981 records and only showed up as a wrong cross-street name
+  on those rows. `cs_amf_nodes()` blanks everything outside printable ASCII in the *text* view
+  instead and reads coordinates from the raw matrix.
+- **A packed coordinate byte can be a newline**: EBCDIC `0x25` decodes to LF and its nibbles 2 and 5
+  are an ordinary digit pair, so splitting on `0x0a` tears records apart. `cs_amf_record_bounds()`
+  rejoins any fragment that does not open with four ASCII digits — provable, not heuristic, since
+  only EBCDIC `0xF0`–`0xF9` decode to a digit and their high nibble 15 is not one.
+- **Detect the AMF layout on width *and* the coordinate columns.** Detecting on a high byte misreads
+  1976, whose last feature header carries trailing rubbish; detecting on width alone misreads a file
+  whose trailing cross-street fields happen to be blank throughout, because trailing blanks are
+  stripped. `cs_amf_coords_are_text()` settles it: 1976 writes columns 32–45 as fourteen ASCII
+  digits and packed data cannot.
+- **AMF records are not in sequence order in the file.** 19,645 of the 45,933 node records in
+  1981's `bc.data` step backwards, with a chain's `E` filed before its `B`; left alone that shatters
+  6,834 chains into 22,175 and loses 40% of the segments. `cs_amf_nodes()` sorts on
+  `(sheet, cma, area, feature, seq_no)` — the sequence numbers are spaced in tens precisely so
+  records can be inserted, so sorting is the file's own intent, not a repair.
+- **An AMF feature number is unique only within a map sheet**, the same trap 1991's `arc_id` sets.
+  The sheet is part of `source_id`, and even then 22 collisions remain in 1981's `bc.data`, whose
+  six Victoria sheet headers are filed together ahead of their data rather than each ahead of its
+  own. `(source_file, source_id)` is the key.
 - **The 1991/1996 `.prj` is degenerate** (`GEOGCS["Unknown", DATUM["D_NAD_27_Canada", ...]]`); assign
   EPSG:4267 explicitly.
 - **1991 ships Lambert twins**: `LSNF*` and `OT_HULL` duplicate `GSNF*` and `HULL_OTT`. The manifest's
@@ -168,6 +235,17 @@ established patterns rather than inventing new ones.
 - **A whole-arc `ST_Azimuth(start, end)` is meaningless for a long arc**: on a 5 km curve it describes
   a chord no part of the road follows. `cs_local_az(g, p)` measures the bearing on a ±25 m window
   around the projection of `p`; `cs_bearing_agree` folds by 180° so reversed digitization agrees.
+- **The reference guide ships inside the archive.** Every RNF zip carries its own
+  `92-500-G<year>001-eng.pdf` (2001: `92f0157g2001000-eng.pdf`), and the 1991 Abacus deposit carries
+  `snfarc.pdf` and `snfamf.pdf`. Those are where the class and rank vocabularies come from, and they
+  are the *only* place for 2011 and 2016 — the StatCan attribute-domain pages exist for 2021 only,
+  and `index2011-eng.cfm?...id=CLASS` and the 2016 spelling both return the 4,099-byte soft-404.
+  Extract the PDF from the cached zip and `pdftotext -layout` it rather than searching the web.
+- **A DuckDB `ENUM` cannot carry the same value twice**, and three vocabularies give two codes one
+  description: 2016 defines `90` and `95` both as Unknown, 2001 has `0` and `U` both Unknown and `92`
+  and `94` both a truncated "Bridge :", and the SNF's List A names both `WAQ` and `SAQ` Aqueduct.
+  `cs_domain_disambiguate()` appends the code to *every* member of a colliding group rather than
+  inventing a distinction the source does not make.
 - **`normalizePath()` leaves a non-existent leaf alone**, so keying a cache on a database file path
   gives one key before the file exists and another after (macOS `/var` → `/private/var`). `cs_conn_key()`
   keys on the resolved *directory*.
@@ -176,6 +254,46 @@ established patterns rather than inventing new ones.
 
 Established by reading the actual files, not the documentation. Trust these over the reference guides.
 
+- **The AMF class vocabulary is a feature type, as the SNF's is**, and blank is the ordinary street
+  (146,693 of 194,000 node records, 95% typed, 41% addressed). Read off the four deposits: `SN`
+  shoreline, `WN` watercourse, `MB` municipal boundary, `RN` railway, `GB` park/reserve/institution
+  outline, `IN` island, `PP` park or school property, `UB` urban/rural boundary, `OB`/`CB` other
+  boundary — none of them road. `HN` is the highway (Trans-Canada, Gaglardi Way, interchanges), `BN`
+  the bridge or tunnel, and `Z` an arterial (Kingsway, Lougheed Highway; 63% addressed, the only
+  classed value that is). `cs_amf_road_classes()` keeps those three plus the unclassed, which is
+  6,574.6 of 1976's 8,857 km and 10,497.3 of 1981's 15,508 km — the same ~2/3 the SNF filter keeps.
+- **AMF node-pair segments are block faces.** Median length 102 m, and the four address fields at a
+  node are, in order, to-left, to-right, from-left, from-right, so a face takes `from` from the node
+  it starts at and `to` from the node it ends at. Verified on Main Street in Vancouver, where
+  Alexander to Powell resolves to 100–198 and 101–199, and in bulk: of the fully addressed faces,
+  100% have the same parity at both ends of a side, 100% have opposite parity across the street, and
+  96% span under 200 civic numbers.
+- **The AMF datum is NAD27, verified rather than assumed.** The zone is stated per map sheet
+  (`cs_amf_zone_crs()` = `26700 + zone`), and a file spans zones. The 1976 node at Main and Hastings
+  (492833, 5458561) lands within 13 m of the intersection through EPSG:26710 and 200 m away through
+  EPSG:26910. In bulk, 89–92% of AMF road length has a 1991 SNF arc within 20 m of its midpoint and
+  95–96% within 40 m; against 2021 it is 68–73% and 88–91%, the gap being 2021's finer digitization.
+- **The class vocabularies are per-vintage and read from primary sources.** 1991/1996 use List A of
+  the Street Network File User Guide (`snfarc.pdf` in the Abacus deposit), which confirms from the
+  documentation what was already established from the data: a blank `class` is its own row,
+  "Addressable Single street & public access lane", so the ordinary street really is the unclassed
+  value, and `Z` really is "Other features" — hydroline, telephone line, fence, pipeline. 2001 uses
+  the numeric composite vocabulary in section 5 of `92f0157g2001000-eng.pdf`, where `1011` is
+  "Road: n/a, street, n/a, n/a, operational, hard", `1536` is **Neatline** and `BO`/`SB` are
+  **Boundary arc** / **Sub-Block boundary arc** — which is the documentary confirmation that
+  dropping those three drops topology. 2011 onward share one vocabulary that is nonetheless revised
+  twice: **2016 defines `95` as a second Unknown** ("90, 95 — Unknown" in its guide, the only place
+  that code is documented anywhere), and 2021 retires `95` and adds `87` Winter.
+- **Do not reuse List A for the Area Master Files.** The 1991 guide's AMF-format variant
+  (`snfamf.pdf`) decomposes the class into (feature type, sub-type, street type), which explains most
+  of the 1976/1981 two-character codes as type + sub-type — `HN` highway, `WN` watercourse, `SN`
+  shoreline, `RN` railway, `BN` bridge, `MB`/`CB`/`GB`/`UB` the boundary families, `PP` property. But
+  it makes `IN` "Falls/Dam/other associated" where the data reads as island, and `Z` "hydroline,
+  telephone, fence, pipeline" where the AMF's `Z` arcs are Kingsway and Lougheed Highway and 63%
+  addressed. The 1976/1981 vocabulary is an earlier revision, no guide for it survives in any
+  deposit, so `cs_class_domain()` returns `NULL` for them and the codes are stored as they are.
+- Segment counts and length: 1976 = 60,883 / 8,857 km, 1981 = 103,774 / 15,508 km, both BC urban
+  only. All named; 1976 has 43,357 typed and 24,620 addressed, 1981 has 75,351 and 35,321.
 - **Identifier spellings**: `arc_id` (1991/1996), `RB_UID` (2001–2010), `NGD_ID` (2005), `NGD_UID`
   (2011+), `NGDUID` (2016/2017 — no underscore).
 - **2021 has no `CMAUID` columns**; 2011 and 2016 do. An empty `cmauid_l` for 2021 is correct.
@@ -281,7 +399,7 @@ single arc matches 35% of 2006 Calgary arcs.
 **Tagging can undo the cascade, so emit drops the residue.** Tagging re-cuts the spine on the
 *unified* breakpoints, so a residual piece contributed by an older vintage gets retested at different
 midpoints and can come back covered by a newer one. `cs_not_superseded_sql()` drops those at emit
-(137 pieces / 3.6 km for Calgary) and the count is recorded on the build. Without it, 9 of 3,744 rows
+(163 pieces / 4.3 km for Calgary) and the count is recorded on the build. Without it, 9 of 3,744 rows
 violated the invariant.
 
 **Halo, then clip.** Sources are staged against the region buffered outward by

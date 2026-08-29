@@ -60,7 +60,8 @@ statcan_vintages <- c(2001, 2005:2025)
 #' Columns:
 #' \describe{
 #'   \item{vintage}{Reference year of the network.}
-#'   \item{product}{`"SNF"` (Street Network File) or `"RNF"` (Road Network File).}
+#'   \item{product}{`"AMF"` (Area Master File), `"SNF"` (Street Network File)
+#'     or `"RNF"` (Road Network File).}
 #'   \item{catalogue}{Statistics Canada catalogue number, where the release has one.}
 #'   \item{host}{`"statcan"` or `"abacus"`; selects the download backend.}
 #'   \item{resource}{A direct URL for `statcan`, a Dataverse persistent
@@ -71,7 +72,8 @@ statcan_vintages <- c(2001, 2005:2025)
 #'   \item{assembly}{`"single"` when the vintage is one national archive,
 #'     `"tiles"` when it must be assembled from per-area units.}
 #'   \item{archive}{Container format. `"exe"` is a Windows self-extracting
-#'     archive, which is a zip with a stub prepended and unzips normally.}
+#'     archive, which is a zip with a stub prepended and unzips normally;
+#'     `"none"` is a bare file, which is how the Area Master Files arrive.}
 #'   \item{schema_era}{Advisory grouping only. The attribute schema is *detected
 #'     from the columns actually present* at import (see [cs_harmonize_sql()]),
 #'     because it varies within these eras -- 1991 is upper-case with `ARC_ID`,
@@ -80,9 +82,13 @@ statcan_vintages <- c(2001, 2005:2025)
 #'   \item{crs}{EPSG code of the source coordinates. The 1991, 1996 and 2001
 #'     files carry a degenerate `GEOGCS["Unknown"]` projection string that `sf`
 #'     resolves to a missing CRS, so this value is assigned on import rather
-#'     than read from the `.prj`.}
-#'   \item{coverage}{`"national"`, or `"urban"` where the release covers only
-#'     the larger urban areas.}
+#'     than read from the `.prj`. For the Area Master Files it records the
+#'     datum only: their coordinates are projected, in a UTM zone that each map
+#'     sheet states for itself, so the working CRS is chosen per sheet by
+#'     [cs_amf_zone_crs()] and this column is not used to place them.}
+#'   \item{coverage}{`"national"`; `"urban"` where the release covers only the
+#'     larger urban areas; `"bc-urban"` for the two Area Master Files, which
+#'     were deposited for British Columbia alone.}
 #'   \item{notes}{Human-readable caveats, surfaced by
 #'     [list_road_network_vintages()].}
 #' }
@@ -117,6 +123,23 @@ cs_sources <- function() {
   abacus <- tibble::tribble(
     ~vintage, ~product, ~catalogue, ~resource, ~file_pattern, ~file_exclude,
     ~assembly, ~archive, ~schema_era, ~crs, ~coverage, ~notes,
+
+    1976L, "AMF", NA_character_, "hdl:11272.1/AB2/MESORS",
+    "[.]data$", NA_character_,
+    "tiles", "none", "amf", 4267L, "bc-urban",
+    paste("Two flat files, not an archive and not a GIS format:",
+          "`vancouver.data` is the Vancouver census metropolitan area and",
+          "`bc.data` the Victoria and Ioco-Anmore sheets. Coordinates are",
+          "NAD27 UTM in a zone stated per map sheet. Read by `read_amf()`;",
+          "no GDAL driver opens this format."),
+
+    1981L, "AMF", NA_character_, "hdl:11272.1/AB2/K0EZ55",
+    "[.]data$", NA_character_,
+    "tiles", "none", "amf", 4267L, "bc-urban",
+    paste("As 1976, but the EBCDIC original: the coordinates are packed",
+          "decimal and reach the deposit as Latin-1 mojibake. `bc.data`",
+          "covers Victoria, Kelowna, Kamloops and Prince George --",
+          "Kelowna in UTM zone 11, the rest in zone 10."),
 
     1991L, "SNF", NA_character_, "hdl:11272.1/AB2/2FCGQJ",
     "_shp[.]zip$", "^(LSNF|OT_HULL)",
@@ -239,11 +262,26 @@ cs_rnf_2001_nonroad_classes <- function() {
   c("BO", "SB", "1536")
 }
 
+# The Area Master File is a topographic base too, and marks the difference the
+# same way the SNF does: an ordinary street carries no class at all (49,781 of
+# the 65,041 node records in 1976 Vancouver), and a class names a feature type.
+# Only four of the thirteen are road. The rest are the shoreline (SN), the
+# watercourses (WN), municipal (MB), urban-rural (UB) and other (OB, CB)
+# boundaries, the railways (RN), island outlines (IN), and the limits of parks,
+# reserves and institutions (GB, PP) -- the last of which are closed rings,
+# flagged `P` on every node rather than delimited by `B` and `E`.
+cs_amf_road_classes <- function() {
+  c("HN",   # highway
+    "Z",    # arterial
+    "BN")   # bridge or tunnel
+}
+
 #' A predicate restricting a vintage to its road features
 #'
 #' `NULL` for the Road Network File vintages from 2005 on, which are roads
 #' already. For the Street Network Files it keeps the unclassed streets plus
-#' [cs_snf_road_classes()]; for 2001 it drops
+#' [cs_snf_road_classes()], and for the Area Master Files those plus
+#' [cs_amf_road_classes()]; for 2001 it drops
 #' [cs_rnf_2001_nonroad_classes()].
 #'
 #' @param vintage Reference year.
@@ -253,15 +291,24 @@ cs_rnf_2001_nonroad_classes <- function() {
 cs_road_class_sql <- function(vintage, column = "class") {
   src <- cs_source(vintage)
   if (!nrow(src)) return(NULL)
-  if (identical(src$product[1], "SNF")) {
+  keep <- switch(src$product[1],
+                 SNF = cs_snf_road_classes(),
+                 AMF = cs_amf_road_classes(),
+                 NULL)
+  # The lists above are written in the codes the reference guides use, but
+  # import stores the labels those codes stand for -- see `cs_class_domain()` --
+  # so everything has to be translated before it can be compared against the
+  # column. For a vintage with no published domain the translation is identity.
+  if (!is.null(keep)) {
     return(paste0("(", column, " IS NULL OR ", column, " IN (",
-                  paste0("'", cs_snf_road_classes(), "'", collapse = ", "),
-                  "))"))
+                  paste0("'", cs_class_label(vintage, keep), "'",
+                         collapse = ", "), "))"))
   }
   if (identical(as.integer(vintage), 2001L)) {
     return(paste0("(", column, " IS NULL OR ", column, " NOT IN (",
-                  paste0("'", cs_rnf_2001_nonroad_classes(), "'",
-                         collapse = ", "), "))"))
+                  paste0("'", cs_class_label(vintage,
+                                             cs_rnf_2001_nonroad_classes()),
+                         "'", collapse = ", "), "))"))
   }
   NULL
 }

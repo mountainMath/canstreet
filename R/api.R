@@ -279,7 +279,13 @@ export_road_network <- function(x, path, crs = NULL,
 #' a column absent from a vintage's source files is `NA` throughout it rather
 #' than missing from the table.
 #'
+#' The `type` given for `class` and `rank` is the type they are read from the
+#' source files as. Both are stored as a labelled `ENUM` and come back as a
+#' factor for the vintages whose vocabulary Statistics Canada published; see
+#' [canstreet_domains()].
+#'
 #' @return A [tibble::tibble()] with `column`, `type` and `source_columns`.
+#' @seealso [canstreet_domains()] for the `class` and `rank` vocabularies.
 #'
 #' @examples
 #' canstreet_schema()

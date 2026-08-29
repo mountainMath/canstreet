@@ -6,8 +6,13 @@ test_that("the manifest is internally consistent", {
   expect_identical(s$vintage, sort(s$vintage))
   expect_true(all(s$host %in% c("statcan", "abacus")))
   expect_true(all(s$assembly %in% c("single", "tiles")))
-  expect_true(all(s$archive %in% c("zip", "exe")))
-  expect_true(all(s$coverage %in% c("national", "urban")))
+  expect_true(all(s$archive %in% c("zip", "exe", "none")))
+  expect_true(all(s$coverage %in% c("national", "urban", "bc-urban")))
+  expect_true(all(s$product %in% c("AMF", "SNF", "RNF")))
+
+  # An unarchived row is a flat file read directly, which only the AMF is.
+  expect_identical(sort(s$vintage[s$archive == "none"]),
+                   sort(s$vintage[s$product == "AMF"]))
   expect_true(all(s$crs %in% c(4267L, 4269L, 3347L)))
 
   # A StatCan row names a file directly; an Abacus row needs a pattern to pick
@@ -53,7 +58,8 @@ test_that("year ranges collapse for display", {
   expect_equal(cs_collapse_years(integer(0)), "none")
 })
 
-test_that("table names distinguish the two products", {
+test_that("table names distinguish the products", {
+  expect_equal(cs_table_name(1976), "amf_1976")
   expect_equal(cs_table_name(1996), "snf_1996")
   expect_equal(cs_table_name(2021), "rnf_2021")
 })
@@ -65,20 +71,37 @@ test_that("each vintage is restricted to its own idea of a road", {
 
   # The Street Network Files keep the unclassed streets, which are the ordinary
   # ones, plus the classes that are also road.
+  # The predicate names the labels, not the codes, because that is what import
+  # stores -- see `cs_class_domain()`.
   snf <- cs_road_class_sql(1996)
   expect_match(snf, "class IS NULL OR class IN")
-  expect_match(snf, "'HMU'")
-  expect_false(grepl("'W'", snf))  # watercourses are not among them
+  expect_match(snf, "'Highway multiple'", fixed = TRUE)
+  expect_false(grepl("'HMU'", snf))
+  # watercourses are not among them
+  expect_false(grepl("Other Water body", snf, fixed = TRUE))
 
   # 2001 is the other way round: it is a coverage whose arc layer carries the
   # census boundary topology, so the filter names what to drop rather than what
   # to keep -- everything else, named or not, is road.
   rnf01 <- cs_road_class_sql(2001)
   expect_match(rnf01, "class IS NULL OR class NOT IN")
-  expect_true(all(vapply(cs_rnf_2001_nonroad_classes(),
-                         function(k) grepl(paste0("'", k, "'"), rnf01),
+  expect_true(all(vapply(cs_class_label(2001, cs_rnf_2001_nonroad_classes()),
+                         function(k) grepl(paste0("'", k, "'"), rnf01,
+                                           fixed = TRUE),
                          logical(1))))
-  expect_false(grepl("'1011'", rnf01))  # the streets stay
+  expect_match(rnf01, "'Neatline'", fixed = TRUE)
+  # the streets stay
+  expect_false(grepl("Road: n/a, street", rnf01, fixed = TRUE))
+
+  # The Area Master File classes its arterials and highways and leaves the
+  # ordinary street unclassed, as the SNF does, but with its own vocabulary.
+  amf <- cs_road_class_sql(1976)
+  expect_match(amf, "class IS NULL OR class IN")
+  expect_true(all(vapply(cs_amf_road_classes(),
+                         function(k) grepl(paste0("'", k, "'"), amf),
+                         logical(1))))
+  expect_false(grepl("'RR'", amf))  # railways are not among them
+  expect_identical(cs_road_class_sql(1981), amf)
 
   # The column is nameable, so the predicate can be applied to an alias.
   expect_match(cs_road_class_sql(2001, "o.class"), "o.class NOT IN")
