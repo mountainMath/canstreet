@@ -122,11 +122,11 @@ cs_harmonize_sql <- function(con, path, src, table) {
 #' The Area Master Files never pass through `ST_Read`: they are parsed in R and
 #' staged as a registered data frame carrying a WKT column, so this is the
 #' alias table's counterpart for a source whose column names are fixed by
-#' [cs_amf_segments()] rather than discovered. It is still generated from
-#' [cs_target_schema()] so that a column added there cannot be forgotten here.
+#' `cs_amf_segments()` rather than discovered. It is still generated from
+#' `cs_target_schema()` so that a column added there cannot be forgotten here.
 #'
 #' One statement per UTM zone, because a zone is a different CRS and
-#' `ST_SetCRS` needs a constant -- the same reason [cs_to_storage_sql()] builds
+#' `ST_SetCRS` needs a constant -- the same reason `cs_to_storage_sql()` builds
 #' its SQL in R.
 #'
 #' @param con A DuckDB connection.

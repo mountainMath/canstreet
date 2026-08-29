@@ -71,7 +71,7 @@ cs_abacus_manifest <- function(pid, cache_path, refresh = FALSE, quiet = FALSE) 
 
 #' Select the datafiles of an Abacus dataset that belong to a vintage
 #'
-#' @param src A one-row source manifest entry from [cs_source()].
+#' @param src A one-row source manifest entry from `cs_source()`.
 #' @inheritParams cs_abacus_manifest
 #' @return A tibble of files to download, in filename order.
 #' @keywords internal

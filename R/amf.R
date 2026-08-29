@@ -133,7 +133,7 @@ cs_amf_record_bounds <- function(bytes) {
 #' blank there, which excludes the headers and the nodes with no coordinate.
 #'
 #' @param bytes The whole file as a raw vector.
-#' @param bounds Output of [cs_amf_record_bounds()].
+#' @param bounds Output of `cs_amf_record_bounds()`.
 #' @return `TRUE` if the file is the 1976 text layout.
 #' @keywords internal
 #' @noRd
@@ -173,7 +173,7 @@ cs_amf_record_matrix <- function(bytes, bounds, width) {
 #' the field is not a number -- which is how the "no coordinate" sentinel
 #' presents itself, since it is a run of EBCDIC blanks.
 #'
-#' @param m Record matrix from [cs_amf_record_matrix()].
+#' @param m Record matrix from `cs_amf_record_matrix()`.
 #' @param from,to 1-based inclusive byte range.
 #' @return A numeric vector, `NA` where the field does not decode.
 #' @keywords internal
@@ -230,7 +230,7 @@ cs_amf_int <- function(x) {
 #'
 #' One row per node record, with the map sheet, area and feature attributes
 #' already carried down onto it. This is the raw view of the file; the segments
-#' [get_road_network()] serves are built from it by [cs_amf_segments()].
+#' [get_road_network()] serves are built from it by `cs_amf_segments()`.
 #'
 #' @param path Path to an AMF `.data` file.
 #' @return A [tibble::tibble()], one row per node record, in file order.
@@ -392,7 +392,7 @@ cs_amf_nodes <- function(path) {
 #' which is the granularity the address fields imply and, measured on 1976
 #' Vancouver, gives a median segment length of 102 m -- a city block.
 #'
-#' @param nodes Output of [cs_amf_nodes()].
+#' @param nodes Output of `cs_amf_nodes()`.
 #' @return A [tibble::tibble()] with one row per segment and a `wkt` column.
 #' @keywords internal
 #' @noRd

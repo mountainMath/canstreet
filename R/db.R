@@ -340,7 +340,7 @@ cs_rebuild_segments_view <- function(con) {
 
 #' Layout version of a temporal network build
 #'
-#' Kept separate from [cs_schema_version()]: a change to the matching algorithm
+#' Kept separate from `cs_schema_version()`: a change to the matching algorithm
 #' invalidates the derived tables but not the imported vintages, and must not
 #' force a re-download of ~7 GB of source archives.
 #' @keywords internal

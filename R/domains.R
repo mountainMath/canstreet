@@ -130,7 +130,7 @@ cs_domain_snf_class <- function() {
 #'
 #' Codes `92` and `94` are printed in the guide as "Bridge :" with nothing after
 #' the colon; the truncated part is not recoverable, so both are given as
-#' "Bridge" and separated by [cs_domain_disambiguate()].
+#' "Bridge" and separated by `cs_domain_disambiguate()`.
 #'
 #' @return A tibble of `code` and `label`.
 #' @keywords internal

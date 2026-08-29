@@ -75,7 +75,7 @@ statcan_vintages <- c(2001, 2005:2025)
 #'     archive, which is a zip with a stub prepended and unzips normally;
 #'     `"none"` is a bare file, which is how the Area Master Files arrive.}
 #'   \item{schema_era}{Advisory grouping only. The attribute schema is *detected
-#'     from the columns actually present* at import (see [cs_harmonize_sql()]),
+#'     from the columns actually present* at import (see `cs_harmonize_sql()`),
 #'     because it varies within these eras -- 1991 is upper-case with `ARC_ID`,
 #'     1996 lower-case with `arc_id`, 2005 has `NGD_ID`, 2007 `RB_UID`, 2011+
 #'     `NGD_UID`.}
@@ -85,7 +85,7 @@ statcan_vintages <- c(2001, 2005:2025)
 #'     than read from the `.prj`. For the Area Master Files it records the
 #'     datum only: their coordinates are projected, in a UTM zone that each map
 #'     sheet states for itself, so the working CRS is chosen per sheet by
-#'     [cs_amf_zone_crs()] and this column is not used to place them.}
+#'     `cs_amf_zone_crs()` and this column is not used to place them.}
 #'   \item{coverage}{`"national"`; `"urban"` where the release covers only the
 #'     larger urban areas; `"bc-urban"` for the two Area Master Files, which
 #'     were deposited for British Columbia alone.}
@@ -280,9 +280,9 @@ cs_amf_road_classes <- function() {
 #'
 #' `NULL` for the Road Network File vintages from 2005 on, which are roads
 #' already. For the Street Network Files it keeps the unclassed streets plus
-#' [cs_snf_road_classes()], and for the Area Master Files those plus
-#' [cs_amf_road_classes()]; for 2001 it drops
-#' [cs_rnf_2001_nonroad_classes()].
+#' `cs_snf_road_classes()`, and for the Area Master Files those plus
+#' `cs_amf_road_classes()`; for 2001 it drops
+#' `cs_rnf_2001_nonroad_classes()`.
 #'
 #' @param vintage Reference year.
 #' @return A SQL predicate string, or `NULL` if the vintage needs no filter.

@@ -111,9 +111,9 @@ cs_tnet_stage_name <- function(vintage, kind) {
 #'
 #' @param con A writable DuckDB connection.
 #' @param vintage Reference year.
-#' @param region `NULL`, or the list returned by [cs_region_wkt()].
+#' @param region `NULL`, or the list returned by `cs_region_wkt()`.
 #' @param roads_only Drop the non-road features the Street Network Files carry;
-#'   see [cs_road_class_sql()].
+#'   see `cs_road_class_sql()`.
 #' @return The two table names, invisibly.
 #' @keywords internal
 #' @noRd
@@ -247,7 +247,7 @@ cs_clip_sql <- function(tbl, region_wkt, con) {
 #'
 #' 5 km is comfortably larger than any sane `name_far_m`, so the exploded index
 #' stays close to one row per arc, and it is exact rather than approximate --
-#' see [cs_rescue_index_sql()].
+#' see `cs_rescue_index_sql()`.
 #'
 #' @return A number, in metres.
 #' @keywords internal
@@ -311,7 +311,7 @@ cs_build_rescue_index <- function(con, match_tbl, out, name_far_m) {
 #' @param name_far_m Radius for the same-name rescue; `0` disables it.
 #' @param short SQL boolean; `TRUE` where the bearing test should be skipped.
 #' @param rescue_src Grid-blocked rescue index over `src`, from
-#'   [cs_build_rescue_index()]. `NULL` disables the rescue.
+#'   `cs_build_rescue_index()`. `NULL` disables the rescue.
 #' @return A named list of SQL predicate strings, and their disjunction.
 #' @keywords internal
 #' @noRd
@@ -391,7 +391,7 @@ cs_breakpoints <- function(con, out, target, srcs, tol, snap_m = 2) {
 #' @param con A writable DuckDB connection.
 #' @param out Temp table to create.
 #' @param target Table of arcs, with `seg_id`, `len_m`.
-#' @param bp Breakpoint table from [cs_breakpoints()].
+#' @param bp Breakpoint table from `cs_breakpoints()`.
 #' @param max_len_m Longest interval to leave uncut, in metres.
 #' @param min_len_m Intervals shorter than this are dropped as slivers.
 #' @return `out`, invisibly.
@@ -687,7 +687,7 @@ cs_build_spine <- function(con, out, staged, specs, bearing_tol,
 #' is constant along each emitted segment by construction.
 #'
 #' @param con A writable DuckDB connection.
-#' @param spine Table from [cs_build_spine()].
+#' @param spine Table from `cs_build_spine()`.
 #' @param staged Named list of staged table pairs.
 #' @param specs Per-vintage match specs.
 #' @param bearing_tol Bearing tolerance in degrees.
