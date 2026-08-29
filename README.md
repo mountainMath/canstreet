@@ -180,6 +180,21 @@ vintages, and about four minutes for nine.
 | 2001 | Road Network File (92F0157GIE) | National | Statistics Canada |
 | 2005-2025 | Road Network File (92-500-X) | National | Statistics Canada |
 
+### One series under three names
+
+The three products in that table are one lineage, not three datasets. Statistics
+Canada's [2006 Census Dictionary note on the road network
+file](https://www12.statcan.gc.ca/census-recensement/2006/ref/dict/geo041a-eng.cfm)
+sets out the succession and what it cost in coverage: **area master files** from
+1971 to 1991, **street network files** for 1996, and **road network files** from
+2001 on. Everything before 2001 covered large urban centres only -- under 1% of
+Canada's land area, and about 35% of its population in 1971, over 50% in 1981,
+57% in 1986 and 62% in 1991 and 1996. 2001 is the first file covering the whole
+country, and it is also the year the files carried boundary arcs alongside the
+roads; the free download begins with the 2005 release. This is why a segment's
+`first_year` so often marks the year the file reached a place rather than the
+year the road was built.
+
 Statistics Canada's [Census Dictionary entry for the Road Network
 File](https://www12.statcan.gc.ca/census-recensement/2011/ref/dict/geo041-eng.cfm)
 gives the official account of the series and its coverage by census year: road
@@ -214,20 +229,19 @@ files are **not routable** -- there is no one-way, turn-restriction or
 dead-end information, and address ranges may be imputed rather than observed.
 
 One thing the dictionary does not say, established here by reading the files:
-the early vintages carry more than roads. The area master files and the 1991 and
-1996 Street Network Files are a full topographic base rather than a road
-network -- watercourses,
-railways, hydro lines, census-boundary arcs and the outlines of parks, golf
-courses and airports are all carried as arcs, about a third of the 1996 file's
-160,000 km and a comparable share of each area master file: shorelines,
-municipal boundaries and creeks account for 2,283 of 1976's 8,857 km and 5,011
-of 1981's 15,508 km. 2001 ships as an ArcInfo coverage whose arc layer carries the
-boundary topology of the census geography alongside the network, another 388,345
-km, every provincial border and coastline among it. `get_road_network()` returns
-all of it as it comes; `build_temporal_network()` drops it by default, because
-the Road Network Files from 2005 on contain none of it and leaving it in reports
-every river, rail line and provincial boundary as a road that has since been
-removed.
+the early vintages carry more than roads. The area master files and the 1991
+and 1996 Street Network Files are a full topographic base rather than a road
+network -- watercourses, railways, hydro lines, census-boundary arcs and the
+outlines of parks, golf courses and airports are all carried as arcs, about a
+third of the 1996 file's 160,000 km and a comparable share of each area master
+file: shorelines, municipal boundaries and creeks account for 2,283 of 1976's
+8,857 km and 5,011 of 1981's 15,508 km. 2001 carries the boundary topology of
+the census geography alongside the network -- which the 2006 dictionary note
+above confirms was deliberate -- another 388,345 km, every provincial border
+and coastline among it. `get_road_network()` returns all of it as it comes;
+`build_temporal_network()` drops it by default, because the Road Network Files
+from 2005 on contain none of it and leaving it in reports every river, rail
+line and provincial boundary as a road that has since been removed.
 
 Segments from every vintage are harmonized onto one schema -- see
 `canstreet_schema()` -- and all geometry is stored in EPSG:3347 (NAD83 /

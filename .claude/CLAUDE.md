@@ -31,9 +31,13 @@ R -q -e 'Sys.setenv(NOT_CRAN="true"); devtools::load_all(); testthat::test_local
 R -q -e 'devtools::check(env_vars = c(NOT_CRAN = "true"))'
 ```
 
-Vignettes are **precomputed**: edit `vignettes/*.Rmd.orig`, then run `Rscript vignettes/precompute.R`
-and commit the resulting `.Rmd` and its `canstreet-*.png` figures. The script refuses to run without
-a cache path set, because the vignettes query real national files. Never edit the `.Rmd` by hand.
+Vignettes are **precomputed**: the sources live in `vignettes.orig/` (plain `.Rmd`, the whole
+directory `.Rbuildignore`d), and `Rscript vignettes.orig/precompute.R` knits them into `vignettes/`,
+which is what ships. Commit the resulting `.Rmd` and its `canstreet-*.png` figures. Name a subset
+(`Rscript vignettes.orig/precompute.R canstreet-vancouver`) while iterating -- a full pass rebuilds
+both temporal networks. The script refuses to run without a cache path set, because the vignettes
+query real national files. Never edit `vignettes/*.Rmd` by hand; each one carries a generated-from
+banner saying so.
 
 ## Architecture
 
@@ -60,6 +64,11 @@ from the Abacus Data Network (UBC), whose Dataverse API needs no credentials for
 British Columbia only — two flat files each, `bc.data` and `vancouver.data`, producer Statistics
 Canada, licence NONE, no restricted files, so they are *not* the DMTI collection the prohibition
 below covers.
+The series' own history is set out in the 2006 Census Dictionary note on the road network file
+(`census-recensement/2006/ref/dict/geo041a-eng.cfm`): area master files 1971–1991, street network
+files 1996, road network files 2001 on; pre-2001 coverage is large urban centres only — under 1% of
+the land area, ~35% of population in 1971, >50% 1981, 57% 1986, 62% in 1991 and 1996 — and the free
+download begins with 2005. That page is the citable source for the coverage story the README tells.
 Abacus's DMTI Spatial collection is licence-restricted — **never automate against it.** Borealis has
 no StatCan street/road network files. Nothing digital exists for 1971 or 1986 in any repository
 searched; if those ever arrive it will be as a custom StatCan request that MountainMath hosts.
@@ -148,12 +157,14 @@ established patterns rather than inventing new ones.
 - **A spatial filter must embed its geometry as a WKT literal**, not a bound parameter — DuckDB's
   `RTREE_INDEX_SCAN` requires a constant on the other side of `ST_Intersects`. Verify with `EXPLAIN`.
 - **Three null sentinels on top of real `NULL`**: `''` everywhere, `N/A` in the modern RNF, and a bare
-  `_` throughout 2001. Zero and negative address ranges are dominant, not edge cases. 2001 adds a
-  fourth by accident: its coverage declares the address columns integer but stores the string `NA`
-  in them, so GDAL parses those to **0** and warns once per field (`Value 'NA    ' of field
-  ARC.ADDR_TO_LEFT parsed incompletely to integer 0`). That lands on the zero sentinel
-  `cs_normalize_address_ranges()` already clears, so the three warnings are left visible rather than
-  muffled — unlike the ten `Normalized/laundered field name` ones, which are expected truncation.
+  `_` throughout 2001. Zero and negative address ranges are dominant, not edge cases. 2001's
+  MapInfo release declares its address columns `Decimal(6, 0)` and simply stores 0 where there is no
+  range, which lands on the zero sentinel `cs_normalize_address_ranges()` already clears, and the
+  import runs warning-free. (The retired coverage was noisier: it declared the same columns integer
+  but stored the string `NA`, so GDAL parsed those to **0** and warned once per field — `Value
+  'NA    ' of field ARC.ADDR_TO_LEFT parsed incompletely to integer 0` — on top of ten
+  `Normalized/laundered field name` warnings for the truncation the conversion needed. If you ever
+  run `cs_coverage_to_shapefile()` again, only the latter are muffled.)
 - **The Area Master File is a mainframe flat file and no driver reads it**, so `R/amf.R` parses it.
   113-byte records in 1976, 95 in 1981 — the difference is exactly the 18 bytes six coordinate pairs
   save when packed two digits to the byte (113 − 6 − 12 = 95). Records are stored with trailing
@@ -191,39 +202,56 @@ established patterns rather than inventing new ones.
   EPSG:4267 explicitly.
 - **1991 ships Lambert twins**: `LSNF*` and `OT_HULL` duplicate `GSNF*` and `HULL_OTT`. The manifest's
   `file_exclude` keeps them out; without it Halifax and Ottawa-Hull double-count.
-- **2001 now comes from StatCan**, not Abacus: `grnf000r01a_e.zip` under the 2011 `rnf-frr/files-fichiers/`
-  path (verified 200 / zip / 397 MB; the `…01g…`, `lrnf…01a…` and `…01a_f` spellings all return the
-  soft-404 signature, as do the equivalent 1991 and 1996 paths — so only 2001 moves). The old Abacus
-  route is no longer used; if you ever go back to it, note that its `mp` files are block polygons and
-  the `ml` shapefile is the road network.
-- **2001 is not a shapefile, and the `a` in its filename does not mean it is.** The archive holds one
-  1.5 GB ArcInfo interchange coverage, `grnf000r02a_e.e00` (yes, `02` — released 2002), plus a PDF.
-  GDAL reads it through the **AVCE00** driver; a coverage names its layers by geometry, so `ARC` is
-  the network (2,053,112 linestrings) and `CNT`, `LAB`, `PAL` are the polygon side.
-- **Do not read the coverage directly — convert it once.** `ST_Read` over AVCE00 scans about **230
-  rows a second** (a `LIMIT 50000` took 13.6 minutes), which is over two hours for 2001, and
-  `cs_import_vintage()` opens the source twice (`DESCRIBE`, then `INSERT`). The format is sequential
-  ASCII with no random access, so `LIMIT` buys nothing. `ogr2ogr` writes the same layer as a
-  shapefile in **90 seconds**, after which the ordinary shapefile path scans all 2.05M rows in 16 s.
-  `cs_coverage_to_shapefile()` in `R/helpers.R` does this, and `cs_resolve_line_source()` calls it
-  when it finds a `.e00`. The shapefile is written beside the coverage inside the extraction
-  directory, which `cs_import_vintage()` deletes on exit, so it costs 90 s per import rather than
-  being cached — the source zip is what the cache keeps, as for every other vintage.
-- **The coverage's `.dbf` is Latin-1 and GDAL will not tell you.** `LC_ALL=C grep` reported no
-  high bytes — wrongly, that shell's `grep` is `ugrep`; `LC_ALL=C tr -dc '\200-\377' | wc -c` finds
-  **60,918**, mostly `0xE9` (31,614 — the acute e of *Vérendrye*), then `0xE8`, `0xC9`, `0xF4`,
-  `0xE7`. AVCE00 has **no open options at all**, so no `ENCODING` can be passed to the driver; GDAL
-  passes the bytes through unrecoded while believing them UTF-8. The conversion therefore writes
-  `-lco ENCODING=` (empty), which keeps the raw bytes and emits no `.cpg` — exactly the file every
-  other RNF vintage ships, read back with the `ENCODING=ISO-8859-1` `cs_st_read_sql()` already
-  applies. Let GDAL write its default `.cpg` instead and it labels the bytes UTF-8, and the first
-  accented street name aborts the scan.
-- **The 2001 coverage spells its address columns in full** — `ADDR_FM_LEFT`, not the shapefile
-  vintages' 10-character `ADDR_FM_LE`. It does not matter in the end, because the conversion to
-  shapefile truncates them back to the 10-character spellings the alias table already carries, but
-  do not be surprised by either. It carries `ARC_ID` (not `RB_UID`, as the Abacus deposit did),
-  unique across all 2,053,112 rows, and `RANK1`–`RANK4` rather than a plain `RANK`, so `rank` is
-  NULL for 2001 until someone documents what those four ranks mean.
+- **2001 now comes from StatCan**, not Abacus, and the file to take is `grnf000r01m_e.zip` under the
+  2011 `rnf-frr/files-fichiers/` path. The `…01g…`, `lrnf…01a…` and `…01a_f` spellings all return the
+  soft-404 signature, as do the equivalent 1991 and 1996 paths — so only 2001 moves. The old Abacus
+  route is no longer used.
+- **2001 is the one vintage where the `a` variant is the wrong one.** The download page
+  (`index-2011-eng.cfm?year=01`) offers four products, and its `Continue` button resolves each to a
+  file: `grnf000r01a_e.zip` (388 MB, labelled ArcGIS but actually one 1.5 GB ArcInfo interchange
+  coverage), `grnf000r01m_e.zip` (**244 MB, MapInfo — this is the one**), and `gsrn000r01a/m_e.zip`,
+  the Skeletal Road Network File (27 MB / 9.7 MB), which is the four-level generalization, not the
+  full network. The page is a POST form, so the URLs are not in the HTML; POST
+  `lang=_e&type=<rnf000r01a|rnf000r01m|srn000r01a|srn000r01m>&year=11&getgeo=Continue` and read the
+  redirect.
+- **The MapInfo release is the same network with a better container.** `grnf000r02ml_e.MIF`/`.MID`
+  (yes, `02` — released 2002) is the road network, `…02mp_e` the block polygons, both beside the
+  reference-guide PDF. Verified identical to the coverage, row for row: 2,053,112 arcs, 1,736,503 km,
+  the same class tally to the arc, 1,329,323 named, 458,813 with a left from-address, 51,847 accented
+  names, and the same `roads_only` total — 1,880,960 arcs and 1,329,336 km by one query run against
+  both tables. What it wins on is mechanics — DuckDB's `ST_Read`
+  scans the whole `.MIF` in **31 s** with no conversion step, where the coverage needs a 90-second
+  `ogr2ogr` pass first (AVCE00 scans ~230 rows a second, over two hours for 2.05M arcs, and
+  `cs_import_vintage()` opens the source twice). End to end the import is 62 s against roughly two
+  minutes, on a 981 MB extraction rather than a 1.5 GB one plus a converted shapefile.
+- **The MapInfo file declares its own charset**, `Charset "WindowsLatin1"` in the `.MIF` header, and
+  the driver recodes on its own — no `ENCODING` guesswork. `cs_st_read_sql()` still passes
+  `ENCODING=ISO-8859-1` unconditionally and that is harmless here: the MapInfo driver accepts the
+  option, and the two encodings differ only over `0x80`–`0x9F`, of which the `.MID` holds not one
+  byte (121,836 high bytes, every one `0xA0` or above — twice the coverage's 60,918, because `name`
+  and `street` both carry them).
+- **The MapInfo columns are richer than the coverage's, and none of the extras are mapped.** 25
+  fields against the coverage's set: `arc_group` (`AD` road / `BO` boundary / `SB` sub-block / `NA`)
+  cleanly separates the topology that `class` conflates, plus `street`, `addr_[ft][lr]_type`,
+  `geo_source`, `ntd_source`, `al_source`, `ar_source` and `length_km`. `cs_rnf_2001_nonroad_classes()`
+  still filters on `class` and still gives exactly the same 1,329,336 km, so there is no reason to
+  add `arc_group` to the target schema — but it is the cleaner predicate if that ever changes.
+- **The address columns are spelled in full** — `addr_fm_left`, and note `addr_fm_rght`, not
+  `_right`. A MapInfo column name is not clipped to ten characters the way a `.dbf` field is, so
+  unlike the converted coverage these reach the harmonizer untruncated; `cs_target_schema()` carries
+  both spellings. The identifier is `arc_id` (not `RB_UID`, as the Abacus deposit had), unique across
+  all 2,053,112 rows, and there is `rank1`–`rank4` rather than a plain `rank` — those are the four
+  skeletal levels of detail, per the download page's own description of the Skeletal file — so `rank`
+  stays NULL for 2001.
+- **`cs_coverage_to_shapefile()` is now legacy, and deliberately kept.** No vintage in the manifest
+  reaches it; `cs_resolve_line_source()` still dispatches to it on a `.e00`, so a future release that
+  ships a coverage still works. If you go back to it, two things cost real time the first time round.
+  Its `.dbf` is Latin-1 and GDAL will not tell you: `LC_ALL=C grep` reported no high bytes — wrongly,
+  that shell's `grep` is `ugrep`; `LC_ALL=C tr -dc '\200-\377' | wc -c` finds **60,918**, mostly
+  `0xE9`. And AVCE00 has **no open options at all**, so no `ENCODING` reaches the driver; the
+  conversion writes `-lco ENCODING=` (empty) to keep the raw bytes and emit no `.cpg`, which is
+  exactly the file every other RNF vintage ships. Let GDAL write its default `.cpg` instead and it
+  labels the bytes UTF-8, and the first accented street name aborts the scan.
 - **Never use the 2025 GeoPackage** — 13 CircularStrings that DuckDB's spatial extension rejects.
   Always take the `a` (shapefile) variant.
 - **DuckDB spatial 1.5.4 has no `ST_Hausdorff`, `ST_FrechetDistance`, `ST_MaxDistance`, `ST_Split`,
@@ -322,7 +350,7 @@ Established by reading the actual files, not the documentation. Trust these over
   from scratch; `(source_file, source_id)` is unique. 1996 happens not to collide. Never join an SNF
   vintage on `source_id` alone.
 - **The SNF is unaccented ASCII** — 0 accented names in 1991, exactly 1 in 1996 — so the Latin-1 `.dbf`
-  problem is an RNF and 2001-coverage matter only, never an SNF one.
+  problem is an RNF matter only, never an SNF one.
 - **The SNF `NAME` field is fixed-width and packs a status suffix**, which survives `trim()` as a run
   of interior spaces: `CLAIRVIEW      PROP.` (proposed), `DESAUTELS     PROJ.` (projected, i.e. not
   built in that year), `CAMBRIAN      PRIV.` (private), plus French article and qualifier tokens (`DU`,
@@ -338,8 +366,9 @@ Established by reading the actual files, not the documentation. Trust these over
   51,000 of the 1996 file's ~160,000 km. Leaving them in reports every river as a retired road: the
   Calgary pilot's implausible "retired 1996 road" fell from 56.6 km to 2.60 km once they were
   filtered. Bridge arcs were checked and do *not* duplicate the street underneath.
-- **2001's arc layer carries the census boundary topology too**, which is the coverage's equivalent of
-  the SNF problem. Its `class` is mostly a numeric feature code (1011 is the ordinary street, 688,063
+- **2001's line layer carries the census boundary topology too**, which is that vintage's equivalent
+  of the SNF problem — and the 2006 Census Dictionary note confirms it was deliberate: "For 2001, the
+  road network files contained both road and boundary arcs". Its `class` is mostly a numeric feature code (1011 is the ordinary street, 688,063
   arcs; 1003/1015/1016/1020/1022/1306 are the highway families) but three codes are not road:
   **`BO`** (167,916 arcs, **388,345 km**), **`1536`** (1,625 arcs, 18,650 km) and **`SB`** (2,611
   arcs, 171 km). None of the three has a single named, typed or addressed arc; `1536`'s longest arcs
@@ -427,7 +456,7 @@ dropped). `first_year` is dominated by coverage, not construction: 1991 alone ad
 CMA-wide, which is the Street Network File reaching past the 1981 urban envelope into the
 Fraser Valley, not a year Vancouver built 2,435 km of road. Inside the City of Vancouver
 CSD, where coverage was complete in 1976, 91% of length has `first_year == 1976` against
-57% CMA-wide. That contrast is what `vignettes/canstreet-vancouver.Rmd.orig` is built
+57% CMA-wide. That contrast is what `vignettes.orig/canstreet-vancouver.Rmd` is built
 around, and it is why that vignette subsets the city with a *polygon*: `csduid_l` on a
 tnet row comes from the spine vintage, and every vintage before 2011 carries none, so an
 attribute filter would drop exactly the oldest segments.

@@ -138,7 +138,59 @@ test_that("geometry is reprojected to the storage CRS with metres for length", {
   expect_gt(got$y, 1e6); expect_lt(got$y, 3e6)
 })
 
-test_that("2001's ArcInfo coverage is converted, then read as a shapefile", {
+test_that("2001's MapInfo spelling maps onto the same schema", {
+  skip_if_no_duckdb_spatial()
+  skip_if_not_installed("sf")
+  dir <- withr::local_tempdir()
+  con <- local_spatial_con()
+
+  # The release spells the address columns in full -- and "RGHT", not "RIGHT".
+  # Every other vintage ships their ten-character `.dbf` truncations, which is
+  # why both spellings have to resolve to the same four target columns.
+  path <- write_fixture_mif(dir, "grnf000r02ml_e", list(
+    arc_id       = c(3257886L, 3257887L),
+    class        = c("1011", "BO"),
+    arc_group    = c("AD", "BO"),
+    name         = c("Vérendrye", "_"),
+    type         = c("BOUL", "_"),
+    direction    = c("_", "_"),
+    addr_fm_left = c(100, 0),
+    addr_to_left = c(198, 0),
+    addr_fm_rght = c(101, 0),
+    addr_to_rght = c(199, 0)))
+  expect_match(path, "\\.mif$", ignore.case = TRUE)
+
+  out <- import_fixture(con, path, 2001)
+
+  expect_equal(out$source_id, c("3257886", "3257887"))
+  expect_equal(out$af_l, c(100L, NA_integer_))
+  expect_equal(out$at_l, c(198L, NA_integer_))
+  expect_equal(out$af_r, c(101L, NA_integer_))
+  expect_equal(out$at_r, c(199L, NA_integer_))
+  # The declared charset survives the read, so an accented name is not mangled.
+  expect_equal(out$name, c("Vérendrye", NA_character_))
+  # "_" is 2001's null sentinel, in the MapInfo spelling as in the coverage.
+  expect_equal(out$dir, c(NA_character_, NA_character_))
+  # The boundary arcs are carried, not dropped: the road filter is what drops
+  # them, and only when the caller asks for it.
+  expect_equal(out$class, c("1011", "BO"))
+})
+
+test_that("the MapInfo road layer is picked over the block polygons", {
+  skip_if_not_installed("sf")
+  dir <- withr::local_tempdir()
+
+  # 2001 ships an `ml` line pair beside an `mp` polygon one. Nothing in the
+  # names says which is which, so the choice is made on geometry.
+  lines <- write_fixture_mif(dir, "grnf000r02ml_e",
+                             list(arc_id = 1:2), geometry = "line")
+  write_fixture_mif(dir, "grnf000r02mp_e",
+                    list(block_id = 1:2), geometry = "polygon")
+
+  expect_equal(cs_resolve_line_source(dir), lines)
+})
+
+test_that("an ArcInfo coverage is converted, then read as a shapefile", {
   skip_if_not_installed("sf")
   dir <- withr::local_tempdir()
   e00 <- file.path(dir, "grnf000r02a_e.e00")
@@ -167,6 +219,11 @@ test_that("a coverage is preferred over stray shapefiles in the same archive", {
   local_mocked_bindings(
     cs_coverage_to_shapefile = function(path) sub("\\.e00$", "_arc.shp", path))
   expect_match(cs_resolve_line_source(dir), "roads_arc\\.shp$")
+})
+
+test_that("an archive with no readable line layer is an error, not a silence", {
+  dir <- withr::local_tempdir()
+  expect_error(cs_resolve_line_source(dir), "No shapefile, MapInfo file")
 })
 
 test_that("the converted coverage is asked for the ARC layer, unrecoded", {

@@ -1,6 +1,36 @@
-# No test here touches the network: the two functions that do -- the HEAD probe
-# and the fetch itself -- are mocked, which is also what lets the offline
-# behaviour be asserted directly.
+# No test here touches the network: the two functions that do -- the
+# availability probe and the fetch itself -- are mocked, which is also what
+# lets the offline behaviour be asserted directly.
+
+test_that("the availability probe reads a ranged response, not just a 200", {
+  # What a ranged GET of a real archive returns: `206`, one byte in
+  # `content-length`, and the file's real size after the slash.
+  expect_true(cs_headers_are_an_archive(paste0(
+    "HTTP/1.1 206 Partial Content\r\n",
+    "Content-Type: application/x-zip-compressed\r\n",
+    "Content-Length: 1\r\n",
+    "Content-Range: bytes 0-0/262144000\r\n\r\n")))
+
+  # Without the `content-range` reading, the one byte would fail the size test.
+  expect_false(cs_headers_are_an_archive(paste0(
+    "HTTP/1.1 206 Partial Content\r\n",
+    "Content-Type: application/x-zip-compressed\r\n",
+    "Content-Length: 1\r\n\r\n")))
+
+  # The soft 404: a redirect to a landing page, served 200 and text/html.
+  expect_false(cs_headers_are_an_archive(paste0(
+    "HTTP/1.1 200 OK\r\n",
+    "Content-Type: text/html; charset=UTF-8\r\n",
+    "Content-Length: 4099\r\n\r\n")))
+
+  # An unranged archive is still recognized, and a stub-sized zip is not.
+  expect_true(cs_headers_are_an_archive(paste0(
+    "HTTP/1.1 200 OK\r\nContent-Type: application/zip\r\n",
+    "Content-Length: 415236096\r\n\r\n")))
+  expect_false(cs_headers_are_an_archive(paste0(
+    "HTTP/1.1 200 OK\r\nContent-Type: application/zip\r\n",
+    "Content-Length: 4099\r\n\r\n")))
+})
 
 test_that("an unreachable host degrades to a classed condition", {
   cache <- withr::local_tempdir()

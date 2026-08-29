@@ -20,10 +20,14 @@ cs_target_schema <- function() {
     "name",       "VARCHAR",  "NAME",
     "type",       "VARCHAR",  "TYPE",
     "dir",        "VARCHAR",  c("DIR", "DIRECTION"),
-    "af_l",       "INTEGER",  c("AFL_VAL", "ADDR_FM_LE"),
-    "at_l",       "INTEGER",  c("ATL_VAL", "ADDR_TO_LE"),
-    "af_r",       "INTEGER",  c("AFR_VAL", "ADDR_FM_RG"),
-    "at_r",       "INTEGER",  c("ATR_VAL", "ADDR_TO_RG"),
+    # The 2001 MapInfo release spells the address columns in full; the
+    # shapefile vintages carry the ten-character truncations of the same
+    # names, which is all a `.dbf` field name can hold. Note "RGHT", not
+    # "RIGHT" -- that is the source's own spelling, not a typo here.
+    "af_l",       "INTEGER",  c("AFL_VAL", "ADDR_FM_LE", "ADDR_FM_LEFT"),
+    "at_l",       "INTEGER",  c("ATL_VAL", "ADDR_TO_LE", "ADDR_TO_LEFT"),
+    "af_r",       "INTEGER",  c("AFR_VAL", "ADDR_FM_RG", "ADDR_FM_RGHT"),
+    "at_r",       "INTEGER",  c("ATR_VAL", "ADDR_TO_RG", "ADDR_TO_RGHT"),
     "class",      "VARCHAR",  "CLASS",
     "rank",       "VARCHAR",  "RANK",
     "csduid_l",   "VARCHAR",  "CSDUID_L",
@@ -60,6 +64,12 @@ cs_create_table_sql <- function(con, table) {
 # the scan with `invalid code point detected in Utf8Proc::UTF8ToCodepoint` --
 # which surfaces at the first string operation, not at read, so it looks like a
 # problem with string folding rather than with the file.
+#
+# 2001's MapInfo file does not need it -- its .MIF header declares
+# `Charset "WindowsLatin1"` and the driver recodes on its own -- but it is
+# harmless there: the option is one the MapInfo driver accepts, and the two
+# encodings differ only over 0x80-0x9F, of which the .MID holds not one byte
+# (121,836 high bytes, all of them 0xA0 and above).
 cs_st_read_sql <- function(path) {
   paste0("st_read('", gsub("'", "''", path),
          "', open_options = ['ENCODING=ISO-8859-1'])")

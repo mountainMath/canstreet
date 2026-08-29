@@ -37,6 +37,11 @@ test_that("StatCan URLs follow the projection and directory rules", {
   expect_match(cs_statcan_url(2016), "files-fichiers/2016/lrnf000r16a_e\\.zip$")
   expect_match(cs_statcan_url(2021), "2021/geo/sip-pis/rnf-frr/")
 
+  # 2001 is the one vintage where the `a` variant is not what to take: there it
+  # is an ArcInfo coverage, and `m` is the MapInfo release read in its place.
+  expect_match(cs_statcan_url(2001), "grnf000r01m_e\\.zip$")
+  expect_false(grepl("r01a", cs_statcan_url(2001), fixed = TRUE))
+
   s <- cs_sources()
   expect_true(all(s$crs[s$host == "statcan" & s$vintage >= 2012] == 3347L))
   expect_true(all(s$crs[s$host == "statcan" & s$vintage <= 2011] == 4269L))
@@ -80,9 +85,9 @@ test_that("each vintage is restricted to its own idea of a road", {
   # watercourses are not among them
   expect_false(grepl("Other Water body", snf, fixed = TRUE))
 
-  # 2001 is the other way round: it is a coverage whose arc layer carries the
-  # census boundary topology, so the filter names what to drop rather than what
-  # to keep -- everything else, named or not, is road.
+  # 2001 is the other way round: its line layer carries the census boundary
+  # topology, so the filter names what to drop rather than what to keep --
+  # everything else, named or not, is road.
   rnf01 <- cs_road_class_sql(2001)
   expect_match(rnf01, "class IS NULL OR class NOT IN")
   expect_true(all(vapply(cs_class_label(2001, cs_rnf_2001_nonroad_classes()),

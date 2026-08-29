@@ -34,6 +34,37 @@ write_fixture_shp <- function(dir, layer, fields, crs = 4269, n = NULL) {
   path
 }
 
+# Write a small MapInfo interchange pair standing in for 2001, the one vintage
+# that does not arrive as a shapefile. A MapInfo column name is not clipped to
+# ten characters, so this is also the only fixture that can spell the address
+# columns the way that release does. `geometry = "polygon"` writes the block
+# layer that ships beside the roads, which the resolver has to reject.
+write_fixture_mif <- function(dir, layer, fields, crs = 4269,
+                              geometry = c("line", "polygon")) {
+  geometry <- match.arg(geometry)
+  n <- length(fields[[1]])
+  geoms <- sf::st_sfc(lapply(seq_len(n), function(i) {
+    x <- -123.1 + i / 1000
+    if (geometry == "line") {
+      sf::st_linestring(matrix(c(x, 49.2, x + 0.001, 49.201),
+                               ncol = 2, byrow = TRUE))
+    } else {
+      sf::st_polygon(list(matrix(
+        c(x, 49.2, x + 0.001, 49.2, x + 0.001, 49.201, x, 49.201, x, 49.2),
+        ncol = 2, byrow = TRUE)))
+    }
+  }), crs = crs)
+  obj <- sf::st_sf(as.data.frame(fields, stringsAsFactors = FALSE),
+                   geometry = geoms)
+  path <- file.path(dir, paste0(layer, ".MIF"))
+  suppressWarnings(sf::st_write(obj, path, driver = "MapInfo File",
+                                quiet = TRUE, delete_dsn = TRUE))
+  # GDAL's MapInfo writer lower-cases the extension; the released files are
+  # upper-case. Report what is actually on disk, so a test can compare paths.
+  list.files(dir, pattern = paste0("^", layer, "\\.mif$"),
+             full.names = TRUE, ignore.case = TRUE)[1]
+}
+
 # Import a fixture shapefile into `table` exactly as cs_import_vintage would.
 import_fixture <- function(con, path, vintage, table = "fixture") {
   src <- cs_source(vintage)

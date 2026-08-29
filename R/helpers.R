@@ -48,21 +48,39 @@ cs_download <- function(url, destfile, quiet = FALSE, ...) {
 }
 
 # Statistics Canada answers a request for a release it does not have with a 302
-# to a landing page served as `200 OK, text/html` -- a soft 404. A HEAD request
+# to a landing page served as `200 OK, text/html` -- a soft 404. The probe
 # therefore has to be judged on content type and length, not on status code.
 cs_headers_are_an_archive <- function(headers) {
   h <- curl::parse_headers_list(headers)
   type <- tolower(h[["content-type"]] %||% "")
+  # A ranged request is answered `206` with the slice's length in
+  # `content-length` and the whole file's after the slash in `content-range`.
+  # Take the latter wherever it is there, so the size test still sees the file
+  # rather than the one byte asked for.
   size <- suppressWarnings(as.numeric(h[["content-length"]] %||% NA))
+  range <- h[["content-range"]] %||% ""
+  if (grepl("/[0-9]+$", range)) {
+    size <- suppressWarnings(as.numeric(sub(".*/", "", range)))
+  }
   is_archive <- grepl("zip|octet-stream|x-msdownload", type)
   is_archive && (is.na(size) || size > 1e6)
 }
 
 # TRUE if `url` looks like it really serves an archive.
+#
+# This asks for the first byte rather than sending a HEAD. Statistics Canada
+# used to answer HEAD on these files and no longer does -- as of 2026-08-29 it
+# 302s every one of them, the current release included, to its 404 page, so a
+# HEAD probe reports every vintage as withdrawn and no download starts. A
+# ranged GET is answered `206` with the real headers. `maxfilesize` bounds the
+# case of a server that ignores `Range`: curl refuses a body it is told up
+# front is larger, rather than pulling a 250 MB archive into memory to decide
+# whether it exists.
 cs_url_is_available <- function(url) {
   res <- tryCatch(
-    curl::curl_fetch_memory(url, curl::new_handle(nobody = TRUE,
-                                                  followlocation = TRUE)),
+    curl::curl_fetch_memory(url, curl::new_handle(range = "0-0",
+                                                  followlocation = TRUE,
+                                                  maxfilesize = 1e6)),
     error = function(e) NULL)
   if (is.null(res)) return(FALSE)
   cs_headers_are_an_archive(rawToChar(res$headers))
@@ -138,10 +156,15 @@ robust_unzip <- function(path, exdir) {
 
 # Convert an ArcInfo interchange coverage to a shapefile beside it.
 #
-# 2001 is the only vintage that arrives this way, and reading it directly is
-# not an option: DuckDB's `ST_Read` over GDAL's AVCE00 driver scanned about
-# 230 rows a second, which is over two hours for the file's 2,053,112 arcs,
-# where `ogr2ogr` writes the whole thing as a shapefile in ninety seconds.
+# Legacy, and deliberately kept: no vintage in the manifest arrives this way
+# any more. 2001 used to -- its ArcGIS variant is one 1.5 GB coverage -- and
+# reading that directly was not an option, because DuckDB's `ST_Read` over
+# GDAL's AVCE00 driver scanned about 230 rows a second, which is over two
+# hours for the file's 2,053,112 arcs, where `ogr2ogr` writes the whole thing
+# as a shapefile in ninety seconds. 2001 is now taken in its MapInfo spelling
+# instead, which DuckDB reads directly, so this runs only if some future
+# release ships a coverage. `cs_resolve_line_source()` still dispatches to it
+# on a `.e00`.
 #
 # A coverage names its layers by geometry -- `ARC` is the network, `PAL`,
 # `CNT` and `LAB` are the polygon side -- so the layer is selected explicitly;
@@ -187,12 +210,16 @@ cs_coverage_to_shapefile <- function(path) {
 }
 
 # Locate the road/street line layer inside an extracted archive. Several
-# vintages ship block or hydrography polygons alongside the streets, so the
-# shapefile is chosen on geometry type rather than on position or size.
+# vintages ship block or hydrography polygons alongside the streets -- 2001's
+# MapInfo release is an `ml` (line) pair beside an `mp` (polygon) one -- so the
+# layer is chosen on geometry type rather than on position, size or name.
 #
-# 2001 is the exception: Statistics Canada ships it as an ArcInfo interchange
-# coverage rather than a shapefile. It is converted to one here, so that
-# everything downstream sees the same shape of file every other vintage has.
+# Two container formats reach here. Every vintage from 1991 on but 2001 is a
+# shapefile; 2001 is MapInfo interchange, a `.MIF` carrying the geometry with
+# its `.MID` alongside carrying the attributes. DuckDB reads both through the
+# same `ST_Read`, so nothing downstream needs to know which it got. A `.e00`
+# coverage is handled too, by conversion -- see `cs_coverage_to_shapefile()`;
+# no current vintage takes that path.
 cs_resolve_line_source <- function(dir) {
   e00 <- list.files(dir, pattern = "\\.e00$", recursive = TRUE,
                     full.names = TRUE, ignore.case = TRUE)
@@ -201,15 +228,15 @@ cs_resolve_line_source <- function(dir) {
                   USE.NAMES = FALSE))
   }
 
-  shps <- list.files(dir, pattern = "\\.shp$", recursive = TRUE,
+  cand <- list.files(dir, pattern = "\\.(shp|mif)$", recursive = TRUE,
                      full.names = TRUE, ignore.case = TRUE)
-  if (!length(shps)) {
-    stop("No shapefile or ArcInfo coverage found in '", dir, "'.",
-         call. = FALSE)
+  if (!length(cand)) {
+    stop("No shapefile, MapInfo file or ArcInfo coverage found in '", dir,
+         "'.", call. = FALSE)
   }
-  if (length(shps) == 1L) return(shps)
+  if (length(cand) == 1L) return(cand)
 
-  is_line <- vapply(shps, function(p) {
+  is_line <- vapply(cand, function(p) {
     g <- tryCatch(as.character(sf::st_geometry_type(sf::st_read(
       p, quiet = TRUE, query = paste0(
         "SELECT * FROM \"", tools::file_path_sans_ext(basename(p)),
@@ -219,9 +246,9 @@ cs_resolve_line_source <- function(dir) {
   }, logical(1))
 
   if (!any(is_line)) {
-    stop("No line-geometry shapefile found in '", dir, "'.", call. = FALSE)
+    stop("No line-geometry layer found in '", dir, "'.", call. = FALSE)
   }
-  shps[is_line]
+  cand[is_line]
 }
 
 utils::globalVariables(c("vintage", "geom", "n",

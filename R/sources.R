@@ -23,12 +23,21 @@ abacus_base <- "https://abacus.library.ubc.ca"
 cs_statcan_url <- function(vintage) {
   yy <- sprintf("%02d", vintage %% 100)
   if (vintage == 2001) {
-    # The 2011 directory still serves 2001, in lower case, and only in the `g`
-    # spelling: `lrnf000r01a_e`, `grnf000r01g_e` and `grnf000r01a_f` all return
-    # the soft-404 signature. The same is not true of 1996 or 1991, whose
-    # equivalent paths return it too -- those stay on Abacus.
+    # 2001 is the one vintage where the `a` variant is *not* what to take. The
+    # 2011 directory offers 2001 in two formats and `a` is a misnomer there:
+    # the download page calls it ArcGIS but `grnf000r01a_e.zip` holds one
+    # 1.5 GB ArcInfo interchange coverage, which no reader opens at a usable
+    # speed. The `m` variant is MapInfo -- `grnf000r02ml_e.MIF`/`.MID`, the
+    # road network, beside an `mp` pair that is the block polygons -- with the
+    # same 2,053,112 arcs, a richer attribute table and a declared charset,
+    # and DuckDB scans it whole in about half a minute. See
+    # `cs_coverage_to_shapefile()` for the coverage reader this retires.
+    #
+    # `lrnf000r01a_e`, `grnf000r01g_e` and `grnf000r01a_f` all return the
+    # soft-404 signature. The same is true of the equivalent 1991 and 1996
+    # paths -- those stay on Abacus.
     paste0(statcan_census_base, "2011/geo/rnf-frr/files-fichiers/",
-           "grnf000r01a_e.zip")
+           "grnf000r01m_e.zip")
   } else if (vintage == 2021) {
     paste0(statcan_census_base, "2021/geo/sip-pis/rnf-frr/files-fichiers/",
            "lrnf000r21a_e.zip")
@@ -111,11 +120,13 @@ cs_sources <- function() {
     coverage = "national",
     notes = ifelse(statcan_vintages == 2001,
                    paste("The first national road network file, and the only",
-                         "vintage that is not a shapefile: the archive holds",
-                         "one 1.5 GB ArcInfo interchange coverage, whose ARC",
-                         "layer is the network. Served from the 2011",
-                         "directory. The Abacus deposit of the same year is",
-                         "the same coverage, so nothing is gained by it."),
+                         "vintage that is not a shapefile: taken in the",
+                         "MapInfo (.MIF/.MID) spelling, whose `ml` layer is",
+                         "the road network and `mp` the block polygons.",
+                         "Served from the 2011 directory. The ArcGIS variant",
+                         "of the same release is an ArcInfo interchange",
+                         "coverage that reads far more slowly and carries",
+                         "fewer attributes."),
                    NA_character_),
     catalogue = ifelse(statcan_vintages == 2001, "92F0157GIE", "92-500-X")
   )
@@ -236,9 +247,10 @@ cs_snf_road_classes <- function() {
     "B", "BMN", "BMU", "BSI")  # bridges, named and unnamed
 }
 
-# 2001 is a coverage, not a shapefile, and its ARC layer carries the polygon
-# topology of the census geography alongside the network. Three of its `class`
-# codes are that topology rather than road:
+# 2001's line layer carries the polygon topology of the census geography
+# alongside the network -- deliberately, per the 2006 Census Dictionary note on
+# the road network file. Three of its `class` codes are that topology rather
+# than road:
 #
 #   BO    167,916 arcs, 388,345 km -- boundary arcs. Not one carries a name, a
 #         street type or an address range, and in Calgary only 60 of 1,057 come

@@ -33,9 +33,8 @@
 #' watercourses, railways, hydro lines, census-boundary arcs and the outlines
 #' of parks, golf courses and airports as arcs alongside the streets -- about a
 #' third of the 1996 file's 160,000 km. 2001 has the same problem in a
-#' different form: it is an ArcInfo coverage, and its arc layer carries the
-#' boundary topology of the census geography, 388,345 km of it, alongside the
-#' network. The Road Network Files from 2005 on carry none of this, so by
+#' different form: it is the one year whose line layer carries the boundary
+#' topology of the census geography, 388,345 km of it, alongside the network. The Road Network Files from 2005 on carry none of this, so by
 #' default those vintages are restricted to their road classes;
 #' `roads_only = FALSE` keeps everything.
 #'
