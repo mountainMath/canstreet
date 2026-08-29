@@ -4,7 +4,13 @@
 \alias{export_road_network}
 \title{Export a road network vintage to GeoParquet}
 \usage{
-export_road_network(x, path, crs = NULL, cache_path = canstreet_cache_path())
+export_road_network(
+  x,
+  path,
+  crs = NULL,
+  roads_only = FALSE,
+  cache_path = canstreet_cache_path()
+)
 }
 \arguments{
 \item{x}{A vintage year, or a lazy table from \code{\link[=get_road_network]{get_road_network()}}.}
@@ -12,6 +18,11 @@ export_road_network(x, path, crs = NULL, cache_path = canstreet_cache_path())
 \item{path}{Output path, ending in \code{.parquet}.}
 
 \item{crs}{Optional CRS to reproject to before writing.}
+
+\item{roads_only}{Restrict the vintage to its road features, as
+\code{\link[=get_road_network]{get_road_network()}} does, and taking the same build-status vector. Used
+only when \code{x} is a year; a lazy table already carries whatever filter it
+was built with.}
 
 \item{cache_path}{Cache directory, used when \code{x} is a year.}
 }

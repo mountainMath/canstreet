@@ -13,6 +13,7 @@ The package provides a uniform base for this to enable reproducible and collabor
 The package provides basic functionality:
 
 * Download and cache the historical road/street network files from Statistics Canada.
+* Filter the features into streets and roads, boundaries, and other features.
 * Identify common road/street segments across different years even when geocoding accuracy has changed over time.
 * Create a temporally unified street network dataset that tags segments according to the years they were present in the network.
 * Facilitate common geo-processing tasks like querying the data with spatial filters.
@@ -238,10 +239,37 @@ file: shorelines, municipal boundaries and creeks account for 2,283 of 1976's
 8,857 km and 5,011 of 1981's 15,508 km. 2001 carries the boundary topology of
 the census geography alongside the network -- which the 2006 dictionary note
 above confirms was deliberate -- another 388,345 km, every provincial border
-and coastline among it. `get_road_network()` returns all of it as it comes;
-`build_temporal_network()` drops it by default, because the Road Network Files
-from 2005 on contain none of it and leaving it in reports every river, rail
-line and provincial boundary as a road that has since been removed.
+and coastline among it.
+
+The other half of the question is whether a road was there in the year that
+carries it, and every era has a way of drawing one that was not: 1996 classes
+Highway 403, Highway 407 and Autoroute 50 "Highway proposed", 2001 writes "under
+construction" into eight of its class descriptions, and 2016 and 2021 class
+about 200 subdivision streets apiece "Planned".
+
+`canstreet_road_classes()` is the answer to both, one row per class value per
+vintage, with its feature category, its build status, and whether it counts as a
+road. `get_road_network(roads_only = TRUE)` applies it, and
+`build_temporal_network()` applies it by default -- left in, every river, rail
+line and provincial boundary reads as a road that has since been removed, and
+every planned street dates its road to the year that anticipated it rather than
+the year that built it.
+
+The two halves separate, because they are not always wanted together. Passing
+build statuses in place of `TRUE` keeps the non-road features out while letting
+the not-yet-built roads back in:
+
+```r
+get_road_network(2016, roads_only = c("operational", "unknown", "planned"))
+```
+
+That is a geocoding answer rather than a network-history one. Across the whole
+series the features that are not roads carry no addresses worth having -- of
+448,000 arcs classed as watercourse, railway, boundary, property, hydro line or
+walkway, 63 carry an address range, and all 63 are artefacts. The roads a
+vintage drew early are different: 177 of 2016's 194 "Planned" arcs are addressed
+block faces, and every one of their street names is in the 2021 file, so those
+are real addresses on streets that were built.
 
 Segments from every vintage are harmonized onto one schema -- see
 `canstreet_schema()` -- and all geometry is stored in EPSG:3347 (NAD83 /
@@ -256,7 +284,8 @@ retires it and adds `87` for winter roads, 2001 uses a numeric vocabulary with
 no code in common with 2011 onward, and the 1991 and 1996 Street Network Files
 classify *features* rather than roads -- so the label a code gets depends on the
 vintage it came from. `canstreet_domains()` returns the tables, which is what
-you need to go back from a label to a code. The vocabularies are read from
+you need to go back from a label to a code, and `canstreet_road_classes()` says
+which of the values in them are road. The vocabularies are read from
 primary sources: the reference guide shipped inside each Road Network File
 archive, the Street Network File User Guide from the Abacus deposit, and the
 2021 Census attribute domain values page. Where no vocabulary was ever

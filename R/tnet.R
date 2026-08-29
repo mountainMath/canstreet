@@ -112,8 +112,9 @@ cs_tnet_stage_name <- function(vintage, kind) {
 #' @param con A writable DuckDB connection.
 #' @param vintage Reference year.
 #' @param region `NULL`, or the list returned by `cs_region_wkt()`.
-#' @param roads_only Drop the non-road features the Street Network Files carry;
-#'   see `cs_road_class_sql()`.
+#' @param roads_only Drop the non-road features the Street Network Files carry.
+#'   `TRUE`, `FALSE`, or the build statuses to keep; resolved by
+#'   `cs_roads_only_statuses()` and applied by `cs_road_class_sql()`.
 #' @return The two table names, invisibly.
 #' @keywords internal
 #' @noRd
@@ -144,8 +145,9 @@ cs_tnet_stage <- function(con, vintage, region = NULL, roads_only = TRUE,
     "       geom\n")
 
   where <- "len_m > 0 AND geom IS NOT NULL"
-  if (roads_only) {
-    road <- cs_road_class_sql(vintage)
+  statuses <- cs_roads_only_statuses(roads_only)
+  if (!is.null(statuses)) {
+    road <- cs_road_class_sql(vintage, statuses = statuses)
     if (!is.null(road)) where <- paste0(where, " AND ", road)
   }
   if (!is.null(region)) {
@@ -1056,7 +1058,7 @@ cs_build_tnet <- function(con, name, vintages, within = NULL,
     bearing_tol = as.character(bearing_tol),
     name_far_m = as.character(name_far_m),
     min_segment_m = as.character(min_segment_m),
-    roads_only = as.character(roads_only),
+    roads_only = paste(as.character(roads_only), collapse = ","),
     n_dropped_superseded = as.character(emitted$n_dropped),
     m_dropped_superseded = as.character(round(emitted$m_dropped, 1)),
     region_wkt = if (is.null(region)) NA_character_ else region$region,

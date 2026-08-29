@@ -36,6 +36,37 @@ test_that("get_road_network returns a lazy table that computes in the database",
   expect_match(as.character(dbplyr::remote_query(x)), "rnf_2011")
 })
 
+test_that("roads_only applies each vintage's own definition of a road", {
+  skip_if_no_duckdb_spatial()
+  cache <- local_fixture_db(2011, n = 5)
+
+  # The fixture's five arcs carry no class, which every vintage reads as an
+  # ordinary street. Add the two that a modern file classes.
+  con <- cs_connect(cache, read_only = FALSE)
+  DBI::dbExecute(con, paste0(
+    "INSERT INTO rnf_2011 (vintage, source_file, source_id, class, len_m, geom)",
+    " VALUES (2011, 'fx', '6', 'Local', 1,",
+    "         st_geomfromtext('LINESTRING(0 0, 1 0)')),",
+    "        (2011, 'fx', '7', 'Planned', 1,",
+    "         st_geomfromtext('LINESTRING(0 1, 1 1)'));"))
+  canstreet_disconnect(cache)
+
+  n <- function(...) {
+    dplyr::pull(dplyr::collect(dplyr::summarize(
+      get_road_network(2011, ..., cache_path = cache), n = dplyr::n())), n)
+  }
+  expect_equal(n(), 7)
+  # The unclassed arcs stay; only the road that is not there yet goes.
+  expect_equal(n(roads_only = TRUE), 6)
+
+  # A geocoding caller wants the planned street back, because it is addressed
+  # and it does get built. Naming the statuses is how.
+  expect_equal(n(roads_only = c("operational", "unknown", "planned")), 7)
+  expect_equal(n(roads_only = "operational"), 6)
+  expect_error(get_road_network(2011, roads_only = "paved", cache_path = cache),
+               "Unknown build status")
+})
+
 test_that("an unknown vintage is rejected before anything is downloaded", {
   expect_error(get_road_network(1971, cache_path = withr::local_tempdir()),
                "No road network file")

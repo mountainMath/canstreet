@@ -7,6 +7,7 @@
 get_road_network(
   vintage,
   within = NULL,
+  roads_only = FALSE,
   refresh = FALSE,
   quiet = FALSE,
   cache_path = canstreet_cache_path()
@@ -19,6 +20,23 @@ get_road_network(
 \item{within}{Optional spatial filter: an \pkg{sf} or \code{sfc} object, or a
 \code{bbox}. Segments intersecting it are returned. Reprojected to the storage
 CRS for you. A filter over a single vintage uses the R-tree index.}
+
+\item{roads_only}{Restrict each vintage to its road features, dropping both
+the non-road ones and the roads that were not yet built in its reference
+year. What that means is different in every vintage -- see
+\code{\link[=canstreet_road_classes]{canstreet_road_classes()}} -- and in several of them it is most of the
+file: a third of the 1991 and 1996 Street Network Files is watercourses,
+railways, hydro lines and boundaries, and 22\% of 2001's length is the
+boundary topology of the census geography. \code{FALSE}, the default, returns
+the vintage as the source file spells it.
+
+For finer control, pass the build statuses to keep instead of \code{TRUE}:
+\code{c("operational", "unknown")} is what \code{TRUE} means, and adding \code{"planned"}
+or \code{"under_construction"} keeps the roads a vintage drew before they were
+built. That matters for geocoding -- the 194 arcs 2016 classes "Planned"
+carry 177 addressed block faces, all of which are real streets by 2021 --
+and it is the wrong choice for dating a road, which is why
+\code{\link[=build_temporal_network]{build_temporal_network()}} keeps the default.}
 
 \item{refresh}{Re-download and re-import even if the vintage is cached.}
 
@@ -42,6 +60,12 @@ inside the database over all 2.2 million segments of a national vintage.
 \details{
 Passing more than one vintage returns them stacked, which is the starting
 point for comparing the network across years.
+
+Not everything in these files is a road. The pre-2005 releases are
+topographic bases that carry watercourses, railways and boundaries as arcs
+alongside the streets, and every era has a way of drawing a road that was
+still only planned. \code{roads_only = TRUE} applies each vintage's own definition
+of a road; \code{\link[=canstreet_road_classes]{canstreet_road_classes()}} is that definition, written out.
 
 Segments are harmonized into a single schema; see \code{\link[=canstreet_schema]{canstreet_schema()}}. All
 geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), so
@@ -70,6 +94,11 @@ bbox <- sf::st_bbox(c(xmin = -123.2, ymin = 49.2, xmax = -123.0,
                       ymax = 49.3), crs = 4326)
 vancouver <- get_road_network(2021, within = bbox) |>
   collect_road_network()
+
+# Only the streets: 1996 carries the Fraser River and the CPR yards too.
+get_road_network(1996, roads_only = TRUE) |>
+  summarize(km = sum(len_m) / 1000) |>
+  collect()
 }
 }
 \seealso{

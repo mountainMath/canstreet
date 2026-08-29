@@ -25,7 +25,7 @@
 #
 # 2005 through 2010 get no domain: the 2006 reference guide documents no CLASS
 # or RANK table, and the 2006 file carries neither column. The Area Master
-# Files get none either -- see `cs_amf_road_classes()` for why the 1991 guide's
+# Files get none either -- see `cs_categories_amf()` for why the 1991 guide's
 # List A cannot simply be reused for them.
 
 #' The 1991 and 1996 Street Network File feature classification
@@ -399,7 +399,8 @@ cs_label_vintage <- function(con, table, vintage) {
 #' identically to `90`; 2021 retires `95` and adds `87` for winter roads; 2001
 #' uses a numeric vocabulary with no code in common with 2011 onward; and the
 #' 1991 and 1996 Street Network Files classify *features*, not roads, so most of
-#' their vocabulary is watercourses, railways and boundaries. See
+#' their vocabulary is watercourses, railways and boundaries. Which of those
+#' values count as road is [canstreet_road_classes()]; applying it is
 #' [get_road_network()] and its `roads_only` argument.
 #'
 #' Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
@@ -418,7 +419,8 @@ cs_label_vintage <- function(con, table, vintage) {
 #'   in the manifest that has a published domain.
 #' @param domain Which coded column to describe: `"class"`, `"rank"`, or both.
 #' @return A tibble of `vintage`, `domain`, `code` and `label`.
-#' @seealso [canstreet_schema()] for the columns themselves.
+#' @seealso [canstreet_road_classes()] for which class values are road,
+#'   [canstreet_schema()] for the columns themselves.
 #' @export
 #' @examples
 #' canstreet_domains(2021)

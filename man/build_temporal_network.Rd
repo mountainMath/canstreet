@@ -53,14 +53,24 @@ it, giving a strict-geometry build.}
 \item{min_segment_m}{Shortest segment to emit; shorter pieces are absorbed
 into their neighbours.}
 
-\item{roads_only}{Keep only road features. This matters for 1991, 1996 and
-2001. The Street Network Files of 1991 and 1996 are a full topographic
-base, and a third of their length is watercourses, railways, hydro lines,
-census boundaries and the outlines of parks and airports; 2001's coverage
-carries the boundary arcs of the census geography, which are 22\% of its
-length. The Road Network Files from 2005 on contain none of this, so
-leaving it in reports every river, rail line and provincial boundary as a
-road that has since been removed. \code{FALSE} keeps them.}
+\item{roads_only}{Restrict each vintage to its road features, using that
+vintage's own vocabulary -- see \code{\link[=canstreet_road_classes]{canstreet_road_classes()}}. This matters
+most for 1976, 1981, 1991, 1996 and 2001: the Area Master Files and Street
+Network Files are full topographic bases, and a third of their length is
+watercourses, railways, hydro lines, census boundaries and the outlines of
+parks and airports, while 2001 carries the boundary arcs of the census
+geography, 22\% of its length. Left in, every river, rail line and
+provincial boundary reads as a road that has since been removed. It also
+drops the arcs a vintage draws for a road that was not yet built -- 1996's
+"Highway proposed", 2001's "under construction", 2016's and 2021's
+"Planned" -- which would otherwise date a road to the year that
+anticipated it. \code{FALSE} keeps everything.
+
+A character vector of build statuses is accepted in place of \code{TRUE}, as
+\code{\link[=get_road_network]{get_road_network()}} takes one, but widening it here is rarely what you
+want: keeping \code{"planned"} dates a road to the vintage that drew it rather
+than the one that first carried it, which is the confounder this whole
+function exists to avoid.}
 
 \item{region_note}{Free text recorded with the build, to say what \code{within}
 was -- for instance which year's boundary file it came from.}
@@ -104,14 +114,25 @@ each segment, so the rescue can be inspected or excluded.
 }
 
 \section{What counts as a road}{
-The 1991 and 1996 Street Network Files are not road networks. They carry
-watercourses, railways, hydro lines, census-boundary arcs and the outlines
-of parks, golf courses and airports as arcs alongside the streets -- about a
-third of the 1996 file's 160,000 km. 2001 has the same problem in a
-different form: it is the one year whose line layer carries the boundary
-topology of the census geography, 388,345 km of it, alongside the network. The Road Network Files from 2005 on carry none of this, so by
-default those vintages are restricted to their road classes;
-\code{roads_only = FALSE} keeps everything.
+The 1991 and 1996 Street Network Files are not road networks, and neither
+are the 1976 and 1981 Area Master Files. They carry watercourses, railways,
+hydro lines, census-boundary arcs and the outlines of parks, golf courses and
+airports as arcs alongside the streets -- about a third of the 1996 file's
+160,000 km. 2001 has the same problem in a different form: it is the one year
+whose line layer carries the boundary topology of the census geography,
+388,345 km of it, alongside the network.
+
+A road that had not been built yet is the other half of the question, and
+every era spells it differently: 1996 classes Highway 403, Highway 407 and
+Autoroute 50 "Highway proposed", 2001 writes "under construction" into eight
+of its composite class descriptions, and 2016 and 2021 class about 200
+subdivision streets apiece "Planned". Those arcs are drawn where the road was
+going to go, so left in they date it to the vintage that anticipated it
+rather than the one that first carried it.
+
+By default every vintage is therefore restricted to the class values
+\code{\link[=canstreet_road_classes]{canstreet_road_classes()}} marks as road; \code{roads_only = FALSE} keeps
+everything.
 }
 
 \section{Regions change shape}{

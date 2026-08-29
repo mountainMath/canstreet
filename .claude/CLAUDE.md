@@ -50,6 +50,7 @@ Data flows manifest → download → harmonize → DuckDB → lazy `tbl`. One mo
 | `R/abacus.R` | Dataverse manifest resolution and file access for the pre-2005 vintages |
 | `R/amf.R` | The Area Master File reader: record layout, COMP-3, chains, `read_amf()` |
 | `R/domains.R` | The published `class`/`rank` vocabularies, per vintage, and the `ENUM` retyping |
+| `R/classes.R` | Which of those class values are road, per vintage: the category/status table and the filter predicate |
 | `R/db.R` | Connection cache, spatial extension, storage CRS, metadata table, `segments` view |
 | `R/import.R` | The harmonizer: target schema, alias resolution, address normalization |
 | `R/api.R` | `get_road_network()`, `collect_road_network()`, `export_road_network()`, `canstreet_schema()` |
@@ -94,13 +95,51 @@ published vocabulary for each vintage and `cs_label_vintage()` retypes both colu
 - **The type is the whole vocabulary**, not just the codes observed, so
   `enum_range(NULL::typeof(class))` *is* the domain. Any code observed but not published is appended
   and stored bare — a vintage never loses a value because the guide does not explain it.
-- **The road-class filters translate.** `cs_snf_road_classes()` and friends are written in codes,
-  because that is how the guides name them, so `cs_road_class_sql()` puts every list through
-  `cs_class_label()` before emitting SQL. Change one without the other and `roads_only` silently
-  keeps nothing.
+- **The road-class filters translate.** `cs_class_categories()` is written in codes, because that is
+  how the guides name them, so `cs_road_class_sql()` puts every list through `cs_class_label()`
+  before emitting SQL. Change one without the other and `roads_only` silently keeps nothing.
   Comparing an `ENUM` column to a literal outside its vocabulary is legal in DuckDB — `IN` and
   `NOT IN` both just return no match rather than failing the cast — so a filter naming a code that
   vintage never uses is harmless.
+
+**Every class carries a category and a status, and `roads_only` filters on both.** `R/classes.R`
+gives each code in each vintage's vocabulary a feature `category` — `road` and eight non-road
+families — and a build `status` (`operational`, `planned`, `under_construction`, `unknown`).
+`cs_road_class_sql()` keeps `category == "road"` with an operational-or-unknown status; anything
+else goes. Two things make it work:
+
+- **The sense of the predicate is per product, not per size.** `cs_class_filter_sense()` returns
+  `keep` for the AMF and SNF and `drop` for every RNF, which decides what happens to a code the
+  guide never documented (import stores those bare). In a topographic base an unknown code is not
+  assumed to be road; in a road network it is. Do not switch the sense to shorten the emitted SQL —
+  it is a semantic choice, not a formatting one.
+- **The assignments are read off the arcs, never across years.** The same word is three different
+  features here: 1996's `FTR` "Trail" is the Bruce Trail and numbered park paths (`path`), 2001's
+  `1306` "Trail: other" is the Klondike, Alaska and Dempster highways (`road`), and 2021's `26`
+  "Reserve / Trail" is 92,393 km of forest service and resource road, 2,470 arcs typed `FSR` and
+  5,103 `RD` (`road`). 2021's `27` "Rapid transit" is Ottawa's Transitway, a road carrying buses, so
+  it stays too.
+
+**`roads_only` is a status vector, not just a flag.** `cs_roads_only_statuses()` resolves `FALSE` to
+no filter, `TRUE` to `cs_road_statuses()`, and a character vector to itself, validated against
+`cs_class_statuses()`. It is called by `get_road_network()`, `export_road_network()` and
+`cs_tnet_stage()`, so all three take the same argument. The point is that the category axis and the
+status axis are wanted separately: **for geocoding, keep `"planned"`.** Nothing outside `category ==
+"road"` carries an address worth having -- across all nine vintages, 448,000 non-road arcs yield 63
+addressed ones and all 63 are artefacts (61 are 1981 AMF island and shoreline chains 14-16 km long
+carrying a single stray address field and no street type) -- and walkways carry none at all: 1991
+`FWA` 25 arcs, 1996 `FWA` 38 and `FTR` 1,469, zero addressed between them. But 177 of 2016's 194
+`Planned` arcs *are* addressed block faces, over 97 distinct names, every one of which appears in
+2021, so they were built. 2021's `Planned` is only 10 addressed of 203, and 2001's under-construction
+1 of 360. Verified end to end: `roads_only = c("operational", "unknown", "planned")` gives 2016
+2,163,058 arcs / 1,356,625 addressed against the default's 2,162,864 / 1,356,448, and 1996 529,055
+arcs (the 85 `HPR`, none addressed) while still dropping the 100,519 non-road ones. A status vector
+reaches `canstreet_builds` as a comma-joined string, since that table is EAV and holds one string per
+key.
+
+`canstreet_road_classes()` is that table exported, and `get_road_network(roads_only = TRUE)` applies
+it — the argument the docs had long promised and did not have. Its default is `FALSE`, so direct
+access still returns the file as it comes; `build_temporal_network()` still defaults to `TRUE`.
 
 `cs_tnet_stage()` casts both columns back to `VARCHAR` as it stages, because a build unions arcs
 from several vintages and their `ENUM`s are not the same type — so a `tnet_*` table carries labels
@@ -224,8 +263,8 @@ established patterns rather than inventing new ones.
   (yes, `02` — released 2002) is the road network, `…02mp_e` the block polygons, both beside the
   reference-guide PDF. Verified identical to the coverage, row for row: 2,053,112 arcs, 1,736,503 km,
   the same class tally to the arc, 1,329,323 named, 458,813 with a left from-address, 51,847 accented
-  names, and the same `roads_only` total — 1,880,960 arcs and 1,329,336 km by one query run against
-  both tables. What it wins on is mechanics — DuckDB's `ST_Read`
+  names, and the same `roads_only` total — under the filter of the day, 1,880,960 arcs and
+  1,329,336 km by one query run against both tables. What it wins on is mechanics — DuckDB's `ST_Read`
   scans the whole `.MIF` in **31 s** with no conversion step, where the coverage needs a 90-second
   `ogr2ogr` pass first (AVCE00 scans ~230 rows a second, over two hours for 2.05M arcs, and
   `cs_import_vintage()` opens the source twice). End to end the import is 62 s against roughly two
@@ -239,9 +278,9 @@ established patterns rather than inventing new ones.
 - **The MapInfo columns are richer than the coverage's, and none of the extras are mapped.** 25
   fields against the coverage's set: `arc_group` (`AD` road / `BO` boundary / `SB` sub-block / `NA`)
   cleanly separates the topology that `class` conflates, plus `street`, `addr_[ft][lr]_type`,
-  `geo_source`, `ntd_source`, `al_source`, `ar_source` and `length_km`. `cs_rnf_2001_nonroad_classes()`
-  still filters on `class` and still gives exactly the same 1,329,336 km, so there is no reason to
-  add `arc_group` to the target schema — but it is the cleaner predicate if that ever changes.
+  `geo_source`, `ntd_source`, `al_source`, `ar_source` and `length_km`. The road filter still works
+  off `class` and still gave exactly the same length on both tables, so there is no reason to add
+  `arc_group` to the target schema — but it is the cleaner predicate if that ever changes.
 - **The address columns are spelled in full** — `addr_fm_left`, and note `addr_fm_rght`, not
   `_right`. A MapInfo column name is not clipped to ten characters the way a `.dbf` field is, so
   unlike the converted coverage these reach the harmonizer untruncated; `cs_target_schema()` carries
@@ -306,7 +345,7 @@ Established by reading the actual files, not the documentation. Trust these over
   outline, `IN` island, `PP` park or school property, `UB` urban/rural boundary, `OB`/`CB` other
   boundary — none of them road. `HN` is the highway (Trans-Canada, Gaglardi Way, interchanges), `BN`
   the bridge or tunnel, and `Z` an arterial (Kingsway, Lougheed Highway; 63% addressed, the only
-  classed value that is). `cs_amf_road_classes()` keeps those three plus the unclassed, which is
+  classed value that is). `cs_categories_amf()` keeps those three plus the unclassed, which is
   6,574.6 of 1976's 8,857 km and 10,497.3 of 1981's 15,508 km — the same ~2/3 the SNF filter keeps.
 - **AMF node-pair segments are block faces.** Median length 102 m, and the four address fields at a
   node are, in order, to-left, to-right, from-left, from-right, so a face takes `from` from the node
@@ -336,6 +375,21 @@ Established by reading the actual files, not the documentation. Trust these over
   dropping those three drops topology. 2011 onward share one vocabulary that is nonetheless revised
   twice: **2016 defines `95` as a second Unknown** ("90, 95 — Unknown" in its guide, the only place
   that code is documented anywhere), and 2021 retires `95` and adds `87` Winter.
+- **What the road filter costs each vintage**, run against the cached national tables: 1976 keeps
+  45,999 arcs / 6,575 km of 60,883 / 8,857; 1981 75,220 / 10,497 of 103,774 / 15,508; 1991 503,469 /
+  104,296 of 599,625 / 160,778; 1996 528,970 / 109,182 of 629,574 / 167,238; 2001 1,880,600 /
+  1,328,881 of 2,053,112 / 1,736,503; 2006 and 2011 lose nothing; 2016 loses 194 arcs / 30.1 km and
+  2021 203 / 27.3. The last two are the whole of `28` Planned, which 2011 does not use at all.
+- **Only three vintages carry a class that says a road was not built yet**, and all three are small:
+  1996's `HPR` "Highway proposed" is 85 arcs / 53.3 km (Highway 403, Highway 407, Autoroute 50 —
+  none of them open in 1996; `HUC` occurs in neither SNF vintage), 2001's eight "under construction"
+  descriptions are 360 arcs / 455.5 km, and `28` Planned is ~200 named subdivision streets in each
+  of 2016 and 2021. Small, but they are exactly the arcs that would date a road to the vintage that
+  anticipated it, so `roads_only` drops them.
+- **The Street Network File records unbuilt roads a second way, and that one is not filtered.** The
+  fixed-width `NAME` field packs `PROP.`/`PROJ.` as a suffix on 2,182 arcs / 470 km in 1991 and 932 /
+  260 km in 1996 — an order of magnitude more than `HPR` — and those arcs are classed as ordinary
+  highways. Deliberately left alone: it is a name-parsing question, not a class one.
 - **Do not reuse List A for the Area Master Files.** The 1991 guide's AMF-format variant
   (`snfamf.pdf`) decomposes the class into (feature type, sub-type, street type), which explains most
   of the 1976/1981 two-character codes as type + sub-type — `HN` highway, `WN` watercourse, `SN`
@@ -355,8 +409,9 @@ Established by reading the actual files, not the documentation. Trust these over
 - Segment counts: 1991 = 599,625 and 1996 = 629,574 (both urban only); 2001 = 2,053,112;
   2006 = 1,869,564; 2011 = 1,973,932; 2016 = 2,163,058; 2021 = 2,242,117.
 - 1991 and 1996 cover **urban areas only**; 2001 onward is national. 2001 imports 2,053,112 arcs /
-  1,736,503 km as read, 1,329,337 km once the non-road classes above are dropped.
-- **1991's class vocabulary is a strict subset of 1996's**, so `cs_snf_road_classes()` — calibrated on
+  1,736,503 km as read, 1,328,881 km once the non-road classes above and the 360 under-construction
+  arcs are dropped (1,329,337 km with the under-construction arcs left in).
+- **1991's class vocabulary is a strict subset of 1996's**, so the SNF road set — calibrated on
   1996 — needs no extension for it: nothing appears in 1991 that 1996 lacks, and 1996 adds only `GJA`,
   `GCO`, `U`, `GCH`. 1991 imports 160,778 km, of which `roads_only` keeps 503,469 arcs / 104,296 km
   and drops 96,156 arcs / 56,482 km — the same ~35% as 1996, and verifiably not road: `RSI`/`RMU`/`RSG`
@@ -393,7 +448,7 @@ Established by reading the actual files, not the documentation. Trust these over
   are roads that did not exist in the year that carries them.
 - **The 1991/1996 SNF is a full topographic base, not a road network.** `class IS NULL` is an ordinary
   street (502,150 arcs in 1996, of which 96% are typed and 76% addressed); a non-null `class` names a
-  *feature type*, of which only twelve are roads — see `cs_snf_road_classes()`. Watercourses, rail,
+  *feature type*, of which only eleven are roads — see `cs_categories_snf()`. Watercourses, rail,
   hydro lines, EA boundaries and the outlines of parks, golf courses and airports account for 58,003
   of the 1996 file's 167,238 km (1991: 56,482 of 160,778). Leaving them in reports every river as a
   retired road: the Calgary pilot's implausible "retired 1996 road" fell from 56.6 km to 2.60 km once
@@ -407,9 +462,10 @@ Established by reading the actual files, not the documentation. Trust these over
   run along 141°W and across 85–87°N — the Yukon–Alaska meridian and the Arctic Ocean limit — and in
   Calgary only 60 of 1,057 `BO` arcs come within 10 m of a road, so they are separate geometry, not
   block boundaries laid along street centrelines. Dropping the three leaves **1,329,337 km** against
-  2006's 1,326,099 km, 0.24% apart: the whole surplus was topology. `cs_rnf_2001_nonroad_classes()`
-  names them and `cs_road_class_sql()` inverts the predicate for 2001 — it says what to *drop*, where
-  the SNF branch says what to keep, because for 2001 everything else is road. `1307` (346 arcs,
+  2006's 1,326,099 km, 0.24% apart: the whole surplus was topology. `cs_categories_rnf_2001()` names
+  them, and `cs_road_class_sql()` inverts the predicate for every RNF vintage — it says what to
+  *drop*, where the SNF and AMF branches say what to keep, because in a Road Network File everything
+  the guide does not explain is still road. `1307` (346 arcs,
   686 km, unnamed) stays: it sits in the same NWT and Yukon interior as `1306`, whose arcs are the
   Klondike, Alaska and Canol highways.
 - **2006's long arcs are coarsely generalized, 2021's are finely digitized.** Of 30,759 2006 Calgary

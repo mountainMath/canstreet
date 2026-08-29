@@ -54,6 +54,12 @@ list_road_network_vintages <- function(
 #' Passing more than one vintage returns them stacked, which is the starting
 #' point for comparing the network across years.
 #'
+#' Not everything in these files is a road. The pre-2005 releases are
+#' topographic bases that carry watercourses, railways and boundaries as arcs
+#' alongside the streets, and every era has a way of drawing a road that was
+#' still only planned. `roads_only = TRUE` applies each vintage's own definition
+#' of a road; [canstreet_road_classes()] is that definition, written out.
+#'
 #' Segments are harmonized into a single schema; see [canstreet_schema()]. All
 #' geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), so
 #' `len_m` and any distance computed from `geom` are in metres regardless of
@@ -68,6 +74,22 @@ list_road_network_vintages <- function(
 #' @param within Optional spatial filter: an \pkg{sf} or `sfc` object, or a
 #'   `bbox`. Segments intersecting it are returned. Reprojected to the storage
 #'   CRS for you. A filter over a single vintage uses the R-tree index.
+#' @param roads_only Restrict each vintage to its road features, dropping both
+#'   the non-road ones and the roads that were not yet built in its reference
+#'   year. What that means is different in every vintage -- see
+#'   [canstreet_road_classes()] -- and in several of them it is most of the
+#'   file: a third of the 1991 and 1996 Street Network Files is watercourses,
+#'   railways, hydro lines and boundaries, and 22% of 2001's length is the
+#'   boundary topology of the census geography. `FALSE`, the default, returns
+#'   the vintage as the source file spells it.
+#'
+#'   For finer control, pass the build statuses to keep instead of `TRUE`:
+#'   `c("operational", "unknown")` is what `TRUE` means, and adding `"planned"`
+#'   or `"under_construction"` keeps the roads a vintage drew before they were
+#'   built. That matters for geocoding -- the 194 arcs 2016 classes "Planned"
+#'   carry 177 addressed block faces, all of which are real streets by 2021 --
+#'   and it is the wrong choice for dating a road, which is why
+#'   [build_temporal_network()] keeps the default.
 #' @param refresh Re-download and re-import even if the vintage is cached.
 #' @param quiet Suppress progress messages.
 #' @param cache_path Cache directory. Defaults to [canstreet_cache_path()],
@@ -98,10 +120,16 @@ list_road_network_vintages <- function(
 #'                       ymax = 49.3), crs = 4326)
 #' vancouver <- get_road_network(2021, within = bbox) |>
 #'   collect_road_network()
+#'
+#' # Only the streets: 1996 carries the Fraser River and the CPR yards too.
+#' get_road_network(1996, roads_only = TRUE) |>
+#'   summarize(km = sum(len_m) / 1000) |>
+#'   collect()
 #' }
 #' @export
 get_road_network <- function(vintage,
                              within = NULL,
+                             roads_only = FALSE,
                              refresh = FALSE,
                              quiet = FALSE,
                              cache_path = canstreet_cache_path()) {
@@ -138,6 +166,14 @@ get_road_network <- function(vintage,
 
   if (!is.null(within)) {
     where <- c(where, cs_within_sql(within))
+  }
+  statuses <- cs_roads_only_statuses(roads_only)
+  if (!is.null(statuses)) {
+    # Over the union view each vintage constrains only its own rows, so a
+    # vintage that needs no filter does not exclude the ones that do.
+    where <- c(where, cs_roads_only_sql(vintages,
+                                        qualify = length(vintages) > 1L,
+                                        statuses = statuses))
   }
 
   sql <- paste0("SELECT * FROM ", from,
@@ -238,6 +274,10 @@ collect_road_network <- function(x, crs = NULL) {
 #' @param x A vintage year, or a lazy table from [get_road_network()].
 #' @param path Output path, ending in `.parquet`.
 #' @param crs Optional CRS to reproject to before writing.
+#' @param roads_only Restrict the vintage to its road features, as
+#'   [get_road_network()] does, and taking the same build-status vector. Used
+#'   only when `x` is a year; a lazy table already carries whatever filter it
+#'   was built with.
 #' @param cache_path Cache directory, used when `x` is a year.
 #'
 #' @return `path`, invisibly.
@@ -247,10 +287,10 @@ collect_road_network <- function(x, crs = NULL) {
 #' export_road_network(2021, "rnf_2021.parquet")
 #' }
 #' @export
-export_road_network <- function(x, path, crs = NULL,
+export_road_network <- function(x, path, crs = NULL, roads_only = FALSE,
                                 cache_path = canstreet_cache_path()) {
   if (!inherits(x, "tbl_sql")) {
-    x <- get_road_network(x, cache_path = cache_path)
+    x <- get_road_network(x, roads_only = roads_only, cache_path = cache_path)
   }
   con <- dbplyr::remote_con(x)
   inner <- dbplyr::sql_render(x)

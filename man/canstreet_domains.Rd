@@ -29,7 +29,8 @@ The vocabularies are genuinely per-vintage. 2016 defines class \code{95}
 identically to \code{90}; 2021 retires \code{95} and adds \code{87} for winter roads; 2001
 uses a numeric vocabulary with no code in common with 2011 onward; and the
 1991 and 1996 Street Network Files classify \emph{features}, not roads, so most of
-their vocabulary is watercourses, railways and boundaries. See
+their vocabulary is watercourses, railways and boundaries. Which of those
+values count as road is \code{\link[=canstreet_road_classes]{canstreet_road_classes()}}; applying it is
 \code{\link[=get_road_network]{get_road_network()}} and its \code{roads_only} argument.
 
 Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
@@ -49,5 +50,6 @@ canstreet_domains(2021)
 canstreet_domains(2016, domain = "class")
 }
 \seealso{
+\code{\link[=canstreet_road_classes]{canstreet_road_classes()}} for which class values are road,
 \code{\link[=canstreet_schema]{canstreet_schema()}} for the columns themselves.
 }
