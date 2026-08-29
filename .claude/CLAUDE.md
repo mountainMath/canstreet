@@ -537,17 +537,34 @@ NULL over all 2,053,112 rows). Each vintage's own
 `csduid_l` still goes to the crosswalk, which is what makes `temporal_network_region_drift()`
 possible — it recovers the annexation of 54.7 km of road into Airdrie between 2011 and 2016.
 
-**Nine vintages over the Vancouver CMA build in 4.4 min** (85,704 segments, 11,381 km;
-1976 6,462 km -> 1981 7,026 -> 1991 9,281 -> 1996 9,439 -> 2001 9,946 -> 2006 10,067 ->
-2011 10,209 -> 2016 10,371 -> 2021 10,484 -- strictly monotone, 829 superseded pieces
-dropped). `first_year` is dominated by coverage, not construction: 1991 alone adds 2,435 km
+**Nine vintages over the Vancouver CMA build in about a minute** (85,044 segments, 11,365 km;
+1976 6,494 km -> 1981 7,069 -> 1991 9,317 -> 1996 9,472 -> 2001 9,955 -> 2006 10,079 ->
+2011 10,220 -> 2016 10,380 -> 2021 10,493 -- strictly monotone, 643 superseded pieces
+dropped). `first_year` is dominated by coverage, not construction: 1991 alone adds 2,421 km
 CMA-wide, which is the Street Network File reaching past the 1981 urban envelope into the
-Fraser Valley, not a year Vancouver built 2,435 km of road. Inside the City of Vancouver
-CSD, where coverage was complete in 1976, 91% of length has `first_year == 1976` against
+Fraser Valley, not a year Vancouver built 2,421 km of road. Inside the City of Vancouver
+CSD, where coverage was complete in 1976, 93% of length has `first_year == 1976` against
 57% CMA-wide. That contrast is what `vignettes.orig/canstreet-vancouver.Rmd` is built
 around, and it is why that vignette subsets the city with a *polygon*: `csduid_l` on a
 tnet row comes from the spine vintage, and every vintage before 2011 carries none, so an
 attribute filter would drop exactly the oldest segments.
+
+**The folded name normalizes a numeric ordinal, and it has to.** `name_fold` is the key rule B
+joins on, and the files respell the numbered street at 2001: every pre-2001 vintage writes Vancouver's
+avenue as `15`, every vintage from 2001 on writes `15th`. Inside the Vancouver CMA the AMF and SNF
+vintages carry *zero* ordinal-suffixed arcs against 2001's 4,511 and 2021's 5,043, so a bare fold
+switched the name rescue off across exactly that boundary. It matters because rule A cannot cover for
+it there: the pre-2001 lineage puts 15th Avenue about 40--48 m north of where 2001 onward puts it
+(1976/1981 49.25862, 1991/1996 49.25874, 2001/2006 49.25832, 2011/2021 49.25819 at Maple), a real
+disagreement wider than 1976's calibrated 37 m tolerance, so rule A correctly declines and rule B is
+the whole safety net. Without the normalization one road was emitted twice --- in one Kitsilano box,
+144 segments / 21.69 km dated `first_year` 2001 and named `15th`...`27th`, beside 145 segments /
+21.44 km retiring after 1996 and named `15`...`27`. `cs_name_fold_sql()` is the single definition,
+called at both the staging and the tagging site; it strips the suffix only after a leading run of
+digits, so `1st Avenue`, `15th Line` and `St Clair` are untouched. Measured before committing: it
+creates **zero** new name collisions in either region, and it recovers 246 segments / 33.19 km
+CMA-wide that were retiring as phantoms. Calgary, whose earliest vintage is 1996 and which barely
+numbers its streets, moved by one segment / 0.2 km --- which is the control.
 
 **Region scale is fast; national is not solved.** The Calgary CMA over six vintages builds in ~25 s
 (75,662 segments, 12,397 km; 1996 4,864 km → 2001 9,254 → 2006 10,145 → 2011 10,643 → 2016 11,088

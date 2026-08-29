@@ -251,3 +251,37 @@ test_that("an sf polygon clips the build to a region", {
   expect_true(builds$regional)
   expect_equal(builds$region_note, "south-west box")
 })
+
+test_that("the folded name normalizes a numeric ordinal and nothing else", {
+  skip_if_no_duckdb_spatial()
+  con <- DBI::dbConnect(duckdb::duckdb())
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  cs_load_spatial(con)
+
+  fold <- function(x) {
+    DBI::dbGetQuery(con, paste0(
+      "SELECT ", cs_name_fold_sql("n"), " AS f FROM (SELECT ",
+      if (is.na(x)) "NULL::VARCHAR" else DBI::dbQuoteString(con, x),
+      " AS n)"))$f
+  }
+
+  # Statistics Canada respells Vancouver's grid at 2001; both must fold alike,
+  # or the name rescue cannot fire across that boundary.
+  expect_identical(fold("15th"), "15")
+  expect_identical(fold("15"), "15")
+  expect_identical(fold("21st"), "21")
+  expect_identical(fold("22nd"), "22")
+  expect_identical(fold("23rd"), "23")
+  expect_identical(fold("20TH"), "20")
+
+  # Narrow on purpose: digits plus a suffix and nothing else.
+  expect_identical(fold("1st Avenue"), "1ST AVENUE")
+  expect_identical(fold("Front"), "FRONT")
+  expect_identical(fold("Main"), "MAIN")
+  expect_identical(fold("15th Line"), "15TH LINE")
+  expect_identical(fold("St Clair"), "ST CLAIR")
+
+  # The two properties the rules rely on are unchanged.
+  expect_identical(fold("Rue Séraphin"), "RUE SERAPHIN")
+  expect_identical(fold(NA_character_), "")
+})

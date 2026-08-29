@@ -98,6 +98,35 @@ cs_tnet_stage_name <- function(vintage, kind) {
   paste0("cs_stage_", kind, "_", vintage)
 }
 
+#' The folded street name the two match rules compare
+#'
+#' Upper-cased and accent-stripped, so that "Rue Seraphin" and "RUE SERAPHIN" --
+#' both of which occur across these vintages -- compare equal. Never NULL, so
+#' `=` on it is always a decidable test.
+#'
+#' A purely numeric ordinal loses its suffix, because Statistics Canada changed
+#' how it spells one in the middle of the series: every vintage through 1996
+#' writes Vancouver's west-side grid `15`, and 2001 onward writes `15th` (4,511
+#' arcs in 2001, 5,043 by 2021, against not one in any of the four older files).
+#' Unnormalized, `15 <> '15TH'` disables the name rescue across that boundary
+#' for every numbered street in the city -- and that is exactly where it is
+#' needed, because the pre-2001 lineage draws 15th Avenue some 45 m north of
+#' where the modern files draw it, beyond any calibrated tolerance. The result
+#' was the avenue being emitted twice, once retiring in 1996 and once appearing
+#' in 2001. The rewrite is deliberately narrow: only a name that is digits plus
+#' an ordinal suffix and nothing else. Measured over the Vancouver and Calgary
+#' regions it creates no new collision at all -- every pair of 2021 arcs within
+#' `name_far_m` sharing a normalized numeric name already shared a bare one.
+#'
+#' @param col Column expression holding the raw name.
+#' @return A SQL expression.
+#' @keywords internal
+#' @noRd
+cs_name_fold_sql <- function(col = "name") {
+  paste0("regexp_replace(coalesce(upper(strip_accents(", col, ")), ''), ",
+         "'^([0-9]+)(ST|ND|RD|TH)$', '\\1')")
+}
+
 #' Stage one vintage for matching
 #'
 #' Produces two temp tables: the *match* table over the haloed extent, which is
@@ -136,12 +165,10 @@ cs_tnet_stage <- function(con, vintage, region = NULL, roads_only = TRUE,
   match_tbl <- cs_tnet_stage_name(vintage, "match")
   spine_tbl <- cs_tnet_stage_name(vintage, "spine")
 
-  # `name_fold` is upper-cased and accent-stripped so that "Rue Séraphin" and
-  # "RUE SERAPHIN" -- both of which occur across these vintages -- compare
-  # equal. Never NULL, so `=` on it is always a decidable test.
+  # Both rules compare `name_fold`; `cs_name_fold_sql()` is its one definition.
   select_common <- paste0(
     "SELECT ", cols, ",\n",
-    "       coalesce(upper(strip_accents(name)), '') AS name_fold,\n",
+    "       ", cs_name_fold_sql(), " AS name_fold,\n",
     "       geom\n")
 
   where <- "len_m > 0 AND geom IS NOT NULL"
@@ -876,7 +903,7 @@ cs_emit_crosswalk <- function(con, name, staged, specs, bearing_tol,
     "SELECT segment_id, spine_vintage, years, name_fold, mid,\n",
     "       cs_local_az(geom, mid) AS az\n",
     "FROM (SELECT segment_id, spine_vintage, years,\n",
-    "             coalesce(upper(strip_accents(name)), '') AS name_fold,\n",
+    "             ", cs_name_fold_sql(), " AS name_fold,\n",
     "             geom, st_lineinterpolatepoint(geom, 0.5) AS mid\n",
     "      FROM ", main, ");"))
 
