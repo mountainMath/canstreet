@@ -31,6 +31,7 @@ library(dplyr)
 #> The following objects are masked from 'package:base':
 #> 
 #>     intersect, setdiff, setequal, union
+library(ggplot2)
 ```
 
 ## A region to work in
@@ -69,35 +70,6 @@ first. `NULL` uses whatever the cache already holds.
 calgary <- build_temporal_network(
   "calgary", c(1996, 2001, 2006, 2011, 2016, 2021),
   within = cma, region_note = "2021 CMA boundary, Calgary (825)")
-#> Staging 6 vintages ...
-#> Calibrating 2016 against 2021 ...
-#> Calibrating 2011 against 2021 ...
-#> Calibrating 2006 against 2021 ...
-#> Calibrating 2001 against 2021 ...
-#> Calibrating 1996 against 2021 ...
-#> Tolerances (m): 2021=40, 2016=10, 2011=40, 2006=40, 2001=40, 1996=39
-#> Building the spine ...
-#>   residual for 2016 ...
-#>   residual for 2011 ...
-#>   residual for 2006 ...
-#>   residual for 2001 ...
-#>   residual for 1996 ...
-#>   cutting the spine ...
-#>   coverage in 2021 ...
-#>   coverage in 2016 ...
-#>   coverage in 2011 ...
-#>   coverage in 2006 ...
-#>   coverage in 2001 ...
-#>   coverage in 1996 ...
-#> Writing tnet_calgary ...
-#> Dropped 163 superseded pieces (4328 m).
-#>   crosswalk for 2021 ...
-#>   crosswalk for 2016 ...
-#>   crosswalk for 2011 ...
-#>   crosswalk for 2006 ...
-#>   crosswalk for 2001 ...
-#>   crosswalk for 1996 ...
-#> Built 75,662 segments, 12,397 km.
 
 calgary
 #> # A query:  ?? x 33
@@ -337,6 +309,30 @@ get_temporal_network_sources("calgary") |>
 #>     <dbl> <dbl>
 #> 1   12373 58262
 ```
+We can show the harmonized network coloured by the first year each segment
+appears in the data.
+
+
+``` r
+get_temporal_network("calgary") |>
+  filter(list_contains(years, 2021L)) |>
+  collect_road_network() %>%
+  sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
+  ggplot(aes(colour=factor(first_year))) +
+  geom_sf(fill = "grey85",  linewidth=0.1) +
+  labs(title = "Calgary CMA road network by vintage",
+       colour="First year\nroad appears\nin data",
+       caption="StatCan Road/Street network files") +
+  guides(colour=guide_legend(override.aes=list(linewidth=1))) +
+  coord_sf(datum=NA) 
+```
+
+<div class="figure">
+<img src="canstreet-temporal-first-year-map-1.png" alt="Calgary CMA road network coloured by the first vintage each segment appears in" width="100%" />
+<p class="caption">plot of chunk first-year-map</p>
+</div>
+
+
 
 ## What actually disappeared
 
@@ -378,13 +374,15 @@ retired |>
 
 
 ``` r
-base <- get_temporal_network("calgary") |>
+get_temporal_network("calgary") |>
   filter(list_contains(years, 2021L)) |>
-  collect_road_network()
-
-plot(sf::st_geometry(base), col = "grey85", lwd = 0.3,
-     main = "Calgary CMA: road present in 2006, gone by 2021")
-plot(sf::st_geometry(retired), col = "firebrick", lwd = 1.2, add = TRUE)
+  collect_road_network() %>%
+  sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
+  ggplot() +
+  geom_sf(fill = "grey85", color = "black", linewidth=0.1) +
+  geom_sf(data = retired, color = "firebrick", linewidth = 0.3) +
+  labs(title = "Calgary CMA: road present in 2006, gone by 2021") +
+  coord_sf(datum=NA)
 ```
 
 <div class="figure">

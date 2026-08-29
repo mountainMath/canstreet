@@ -26,6 +26,7 @@ takes a few minutes --- but the code is exactly what you would run.
 ```{r library}
 library(canstreet)
 library(dplyr)
+library(ggplot2)
 ```
 
 ## A region to work in
@@ -191,6 +192,24 @@ get_temporal_network_sources("calgary") |>
             total = n()) |>
   collect()
 ```
+We can show the harmonized network coloured by the first year each segment
+appears in the data.
+
+```{r first-year-map, fig.alt = "Calgary CMA road network coloured by the first vintage each segment appears in"}
+get_temporal_network("calgary") |>
+  filter(list_contains(years, 2021L)) |>
+  collect_road_network() %>%
+  sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
+  ggplot(aes(colour=factor(first_year))) +
+  geom_sf(fill = "grey85",  linewidth=0.1) +
+  labs(title = "Calgary CMA road network by vintage",
+       colour="First year\nroad appears\nin data",
+       caption="StatCan Road/Street network files") +
+  guides(colour=guide_legend(override.aes=list(linewidth=1))) +
+  coord_sf(datum=NA) 
+```
+
+
 
 ## What actually disappeared
 
@@ -215,13 +234,16 @@ retired |>
 ```
 
 ```{r map, fig.alt = "Roads present in 2006 and gone by 2021, over the Calgary CMA"}
-base <- get_temporal_network("calgary") |>
+get_temporal_network("calgary") |>
   filter(list_contains(years, 2021L)) |>
-  collect_road_network()
+  collect_road_network() %>%
+  sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
+  ggplot() +
+  geom_sf(fill = "grey85", color = "black", linewidth=0.1) +
+  geom_sf(data = retired, color = "firebrick", linewidth = 0.3) +
+  labs(title = "Calgary CMA: road present in 2006, gone by 2021") +
+  coord_sf(datum=NA)
 
-plot(sf::st_geometry(base), col = "grey85", lwd = 0.3,
-     main = "Calgary CMA: road present in 2006, gone by 2021")
-plot(sf::st_geometry(retired), col = "firebrick", lwd = 1.2, add = TRUE)
 ```
 
 A caution about reading this: it is honest about being a *lower* standard of
