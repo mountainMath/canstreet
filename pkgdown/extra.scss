@@ -1,0 +1,9 @@
+// The vignettes are precomputed, so knitr never runs during the site build and
+// their figures arrive as plain `<img>` tags rather than through pkgdown's own
+// plot rendering. That means pkgdown's dark-mode rule for `img.r-plt` never
+// reaches them, and a white plot panel would glare out of the dark page. Apply
+// the same filter pkgdown uses on its own plots, scoped to article pages so it
+// cannot catch a badge or a logo on the home page.
+[data-bs-theme="dark"] .template-article main img {
+  filter: invert(100%) hue-rotate(180deg);
+}

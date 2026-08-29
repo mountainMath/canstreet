@@ -2,3 +2,11 @@ url: https://mountainmath.github.io/canstreet/
 
 template:
   bootstrap: 5
+  # A light/dark/auto selector in the navbar. pkgdown swaps the syntax
+  # highlighting theme with it -- `theme` and `theme-dark` below are its
+  # defaults, written out so it is obvious that dark code blocks are handled
+  # here and not in a custom stylesheet.
+  light-switch: true
+  params:
+    theme: arrow-light
+    theme-dark: arrow-dark
