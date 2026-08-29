@@ -19,7 +19,7 @@ Files Statistics Canada deposited for 1976 and 1981 cover British Columbia and
 nothing else. That makes nine vintages over forty-five years --- and they are
 not variations on a single format. 1976 and 1981 are mainframe flat files that
 no GIS driver opens, 1991 and 1996 are Street Network File shapefiles, 2001 is
-an ArcInfo interchange coverage, and 2006 onward are Road Network Files. The
+a MapInfo interchange pair, and 2006 onward are Road Network File shapefiles. The
 package's job is to make that irrelevant to the caller.
 
 This vignette is precomputed --- it downloads several hundred megabytes and the
@@ -49,7 +49,7 @@ cma |> sf::st_drop_geometry() |> select(CMAUID, CMANAME)
 The two Area Master Files join the series like any other vintage. Nothing in
 the call says they arrive in a different format:
 
-```{r build}
+```{r build, message = FALSE}
 vints <- c(1976, 1981, 1991, 1996, 2001, 2006, 2011, 2016, 2021)
 
 vancouver <- build_temporal_network(

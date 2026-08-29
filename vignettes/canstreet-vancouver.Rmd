@@ -6,6 +6,8 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+<!-- Generated from vignettes.orig/canstreet-vancouver.Rmd -- do not edit. -->
+<!-- Rebuild with: Rscript vignettes.orig/precompute.R -->
 
 
 
@@ -15,7 +17,7 @@ Files Statistics Canada deposited for 1976 and 1981 cover British Columbia and
 nothing else. That makes nine vintages over forty-five years --- and they are
 not variations on a single format. 1976 and 1981 are mainframe flat files that
 no GIS driver opens, 1991 and 1996 are Street Network File shapefiles, 2001 is
-an ArcInfo interchange coverage, and 2006 onward are Road Network Files. The
+a MapInfo interchange pair, and 2006 onward are Road Network File shapefiles. The
 package's job is to make that irrelevant to the caller.
 
 This vignette is precomputed --- it downloads several hundred megabytes and the
@@ -25,14 +27,6 @@ build takes a few minutes --- but the code is exactly what you would run.
 ``` r
 library(canstreet)
 library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
 library(ggplot2)
 ```
 
@@ -295,15 +289,15 @@ get_temporal_network_sources("vancouver") |>
 #> # A tibble: 33 × 3
 #>    vintage match_kind        n
 #>      <int> <chr>         <dbl>
-#>  1    1976 geometry+name 27972
-#>  2    1976 geometry      15283
+#>  1    1976 geometry+name 27937
+#>  2    1976 geometry      15319
 #>  3    1976 name_rescue    5206
 #>  4    1976 spine           298
-#>  5    1981 geometry+name 30977
-#>  6    1981 geometry      15697
+#>  5    1981 geometry+name 30991
+#>  6    1981 geometry      15684
 #>  7    1981 name_rescue    5871
 #>  8    1981 spine           822
-#>  9    1991 geometry+name 39377
+#>  9    1991 geometry+name 39378
 #> 10    1991 geometry      19340
 #> # ℹ 23 more rows
 ```

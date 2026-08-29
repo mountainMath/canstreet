@@ -6,6 +6,8 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+<!-- Generated from vignettes.orig/canstreet.Rmd -- do not edit. -->
+<!-- Rebuild with: Rscript vignettes.orig/precompute.R -->
 
 
 
@@ -189,8 +191,8 @@ get_road_network(c(1996, 2006, 2021)) |>
 #> # A tibble: 3 × 3
 #>   vintage segments      km
 #>     <int>    <dbl>   <dbl>
-#> 1    2021  2242117 1170167
-#> 2    2006  1869564 1326099
+#> 1    2006  1869564 1326099
+#> 2    2021  2242117 1170167
 #> 3    1996   629574  167238
 ```
 
@@ -238,10 +240,10 @@ canstreet_schema()
 #>  4 name        VARCHAR NAME                                   
 #>  5 type        VARCHAR TYPE                                   
 #>  6 dir         VARCHAR DIR, DIRECTION                         
-#>  7 af_l        INTEGER AFL_VAL, ADDR_FM_LE                    
-#>  8 at_l        INTEGER ATL_VAL, ADDR_TO_LE                    
-#>  9 af_r        INTEGER AFR_VAL, ADDR_FM_RG                    
-#> 10 at_r        INTEGER ATR_VAL, ADDR_TO_RG                    
+#>  7 af_l        INTEGER AFL_VAL, ADDR_FM_LE, ADDR_FM_LEFT      
+#>  8 at_l        INTEGER ATL_VAL, ADDR_TO_LE, ADDR_TO_LEFT      
+#>  9 af_r        INTEGER AFR_VAL, ADDR_FM_RG, ADDR_FM_RGHT      
+#> 10 at_r        INTEGER ATR_VAL, ADDR_TO_RG, ADDR_TO_RGHT      
 #> # ℹ 14 more rows
 ```
 
@@ -272,7 +274,7 @@ list_canstreet_cache()
 #> 2    1981     103774          2   10.2 2026-08-28T19:38:36-0700 0.0.0.9000     
 #> 3    1991     599625         51  169.  2026-08-28T18:54:28-0700 0.0.0.9000     
 #> 4    1996     629574         50  136   2026-08-28T18:54:38-0700 0.0.0.9000     
-#> 5    2001    2053112          1  397.  2026-08-28T18:57:01-0700 0.0.0.9000     
+#> 5    2001    2053112          1  250   2026-08-29T11:15:39-0700 0.0.0.9000     
 #> 6    2006    1869564          1  219.  2026-08-28T18:57:14-0700 0.0.0.9000     
 #> 7    2011    1973932          1  334.  2026-08-28T18:57:40-0700 0.0.0.9000     
 #> 8    2016    2163058          1  327.  2026-08-28T18:58:07-0700 0.0.0.9000     

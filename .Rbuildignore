@@ -8,5 +8,4 @@
 ^LICENSE\.md$
 ^pkgdown$
 ^tools$
-^vignettes/.*\.Rmd\.orig$
-^vignettes/precompute\.R$
+^vignettes\.orig$

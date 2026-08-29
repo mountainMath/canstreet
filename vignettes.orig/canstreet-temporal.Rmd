@@ -54,7 +54,7 @@ Name the years you want. Any two or more will do --- the census years are a
 convention, not a requirement --- and anything not yet imported is downloaded
 first. `NULL` uses whatever the cache already holds.
 
-```{r build}
+```{r build, message = FALSE}
 calgary <- build_temporal_network(
   "calgary", c(1996, 2001, 2006, 2011, 2016, 2021),
   within = cma, region_note = "2021 CMA boundary, Calgary (825)")
