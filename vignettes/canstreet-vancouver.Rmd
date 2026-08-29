@@ -1,0 +1,353 @@
+---
+title: "Forty-five years of Vancouver street network"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Forty-five years of Vancouver street network}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+
+The Calgary vignette builds a temporal network from the census years 1996
+onward. Vancouver reaches two decades further back, because the two Area Master
+Files Statistics Canada deposited for 1976 and 1981 cover British Columbia and
+nothing else. That makes nine vintages over forty-five years --- and they are
+not variations on a single format. 1976 and 1981 are mainframe flat files that
+no GIS driver opens, 1991 and 1996 are Street Network File shapefiles, 2001 is
+an ArcInfo interchange coverage, and 2006 onward are Road Network Files. The
+package's job is to make that irrelevant to the caller.
+
+This vignette is precomputed --- it downloads several hundred megabytes and the
+build takes a few minutes --- but the code is exactly what you would run.
+
+
+``` r
+library(canstreet)
+library(dplyr)
+#> 
+#> Attaching package: 'dplyr'
+#> The following objects are masked from 'package:stats':
+#> 
+#>     filter, lag
+#> The following objects are masked from 'package:base':
+#> 
+#>     intersect, setdiff, setequal, union
+library(ggplot2)
+```
+
+## A region to work in
+
+As in the Calgary vignette, one fixed polygon is stamped across every year
+rather than filtering on a region attribute, which the pre-2011 files do not
+carry anyway:
+
+
+``` r
+cma <- cancensus::get_statcan_geographies("2021", level = "CMA") |>
+  filter(CMANAME == "Vancouver")
+#> Reading geographic data from local cache.
+
+cma |> sf::st_drop_geometry() |> select(CMAUID, CMANAME)
+#> # A tibble: 1 × 2
+#>   CMAUID CMANAME  
+#>   <chr>  <chr>    
+#> 1 933    Vancouver
+```
+
+## Building
+
+The two Area Master Files join the series like any other vintage. Nothing in
+the call says they arrive in a different format:
+
+
+``` r
+vints <- c(1976, 1981, 1991, 1996, 2001, 2006, 2011, 2016, 2021)
+
+vancouver <- build_temporal_network(
+  "vancouver", vints, within = cma,
+  region_note = "2021 CMA boundary, Vancouver (933)")
+
+vancouver
+#> # A query:  ?? x 33
+#> # Database: DuckDB 1.5.4 [jens@Darwin 25.6.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
+#>    segment_id spine_vintage spine_id         spine_piece spine_lo spine_hi years
+#>         <dbl>         <int> <chr>                  <int>    <dbl>    <dbl> <lis>
+#>  1          1          1976 01-5937-1563-00…           1        0        1 <int>
+#>  2          2          1976 01-5937-1563-00…           1        0        1 <int>
+#>  3          3          1976 01-5937-1563-00…           1        0        1 <int>
+#>  4          4          1976 01-5937-1563-00…           1        0        1 <int>
+#>  5          5          1976 01-5937-1563-00…           1        0        1 <int>
+#>  6          6          1976 01-5937-1563-00…           1        0        1 <int>
+#>  7          7          1976 01-5937-1563-00…           1        0        1 <int>
+#>  8          8          1976 01-5937-1563-00…           1        0        1 <int>
+#>  9          9          1976 01-5937-1563-00…           1        0        1 <int>
+#> 10         10          1976 01-5937-1563-00…           1        0        1 <int>
+#> # ℹ more rows
+#> # ℹ 26 more variables: year_key <chr>, n_years <int>, first_year <int>,
+#> #   last_year <int>, source_id <chr>, name <chr>, type <chr>, dir <chr>,
+#> #   af_l <int>, at_l <int>, af_r <int>, at_r <int>, class <chr>, rank <chr>,
+#> #   csduid_l <chr>, csduid_r <chr>, csdname_l <chr>, csdname_r <chr>,
+#> #   csdtype_l <chr>, csdtype_r <chr>, cmauid_l <chr>, cmauid_r <chr>,
+#> #   pruid_l <chr>, pruid_r <chr>, len_m <dbl>, geom <list>
+```
+
+## Read `first_year` as "first mapped", not "first built"
+
+This is the caution the whole vignette turns on, and it gets sharper the
+further back the series reaches.
+
+`first_year` is the earliest vintage in which a segment was matched. That is a
+statement about the *files*, and the files do not all cover the same ground:
+
+
+``` r
+list_road_network_vintages() |>
+  filter(vintage %in% vints) |>
+  select(vintage, product, coverage, n_segments)
+#> # A tibble: 9 × 4
+#>   vintage product coverage n_segments
+#>     <int> <chr>   <chr>         <int>
+#> 1    1976 AMF     bc-urban      60883
+#> 2    1981 AMF     bc-urban     103774
+#> 3    1991 SNF     urban        599625
+#> 4    1996 SNF     urban        629574
+#> 5    2001 RNF     national    2053112
+#> 6    2006 RNF     national    1869564
+#> 7    2011 RNF     national    1973932
+#> 8    2016 RNF     national    2163058
+#> 9    2021 RNF     national    2242117
+```
+
+1976 and 1981 map a handful of British Columbia urban areas; 1991 and 1996 map
+urban areas nationally; 2001 is the first file covering the whole country. So a
+road in Langley or Maple Ridge that first appears in 2001 may well have been
+there in 1976 --- it was simply outside what anyone had digitized. Growth and
+coverage are confounded, and no amount of matching separates them.
+
+The kilometres present in each year show the two effects stacked:
+
+
+``` r
+tibble::tibble(year = vints, km = round(vapply(vints, function(y) {
+  vancouver |>
+    filter(list_contains(years, y)) |>
+    summarize(km = sum(len_m, na.rm = TRUE) / 1000) |>
+    pull(km)
+}, numeric(1)), 1))
+#> # A tibble: 9 × 2
+#>    year     km
+#>   <dbl>  <dbl>
+#> 1  1976  6462.
+#> 2  1981  7026.
+#> 3  1991  9281.
+#> 4  1996  9439.
+#> 5  2001  9946.
+#> 6  2006 10067.
+#> 7  2011 10209.
+#> 8  2016 10371.
+#> 9  2021 10484.
+```
+
+## Where the confounding goes away
+
+Inside a municipality that was already fully mapped in 1976, the coverage
+problem does not arise and `first_year` recovers its plain meaning. The City of
+Vancouver is such a place.
+
+Subsetting it is the same operation as building the region in the first place
+--- a polygon, not an attribute. That is not fussiness: `csduid_l` on a segment
+comes from the vintage its geometry was cut from, and the 1976 through 2006
+files carry no region columns at all, so filtering on the attribute would
+silently drop exactly the oldest segments this vignette is about.
+
+
+``` r
+van_city <- cancensus::get_statcan_geographies("2021", level = "CSD") |>
+  filter(CSDUID == "5915022")
+#> Reading geographic data from local cache.
+
+city <- get_temporal_network("vancouver", within = van_city)
+
+by_first <- function(x) {
+  x |>
+    group_by(first_year) |>
+    summarize(km = sum(len_m, na.rm = TRUE) / 1000) |>
+    collect() |>
+    arrange(first_year) |>
+    mutate(share = round(km / sum(km), 3), km = round(km, 1))
+}
+
+by_first(vancouver) |>
+  rename(km_cma = km, share_cma = share) |>
+  left_join(by_first(city) |> rename(km_city = km, share_city = share),
+            by = "first_year")
+#> # A tibble: 9 × 5
+#>   first_year km_cma share_cma km_city share_city
+#>        <int>  <dbl>     <dbl>   <dbl>      <dbl>
+#> 1       1976 6462.      0.568  1480.       0.909
+#> 2       1981  697.      0.061    29.2      0.018
+#> 3       1991 2435       0.214    43.9      0.027
+#> 4       1996  343.      0.03     13.7      0.008
+#> 5       2001  589.      0.052    42        0.026
+#> 6       2006  173.      0.015     4.4      0.003
+#> 7       2011  454.      0.04     11        0.007
+#> 8       2016  139       0.012     2.6      0.002
+#> 9       2021   88.1     0.008     2.2      0.001
+```
+
+The two columns tell different stories. In the city 91% of the network's length
+was already mapped in 1976, which is the honest reading: the street grid was
+substantially complete by then, and what came later is infill --- a few
+kilometres a decade. Across the CMA it is 57%, and the 1991 column alone adds
+2,435 km. Vancouver did not gain 2,435 km of road in 1991. That is the year the
+Street Network File extended past the 1981 urban envelope, and it is the
+coverage effect in a single number.
+
+## The map
+
+Colouring each segment by the year it first appears makes both readings visible
+at once. The concentric structure is real urban growth; the hard edges are
+where a file's coverage stopped. Only segments still present in 2021 are drawn.
+
+
+``` r
+plot_first_year <- function(x, title, linewidth = 0.1) {
+  x |>
+    filter(list_contains(years, 2021L)) |>
+    collect_road_network() %>%
+    sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
+    ggplot(aes(colour = factor(first_year))) +
+    geom_sf(linewidth = linewidth) +
+    scale_colour_viridis_d(option = "turbo", direction = -1,
+                           begin = 0.12, end = 0.92) +
+    labs(title = title,
+         subtitle = "Colour is the first year the segment appears in the data",
+         colour = "First year\nroad appears\nin data",
+         caption = "StatCan Area Master, Street Network and Road Network Files") +
+    guides(colour = guide_legend(override.aes = list(linewidth = 1))) +
+    coord_sf(datum = NA)
+}
+
+plot_first_year(vancouver, "Vancouver CMA road network by vintage")
+```
+
+<div class="figure">
+<img src="canstreet-vancouver-first-year-map-1.png" alt="Vancouver CMA road network coloured by the first vintage each segment appears in, 1976 to 2021" width="100%" />
+<p class="caption">plot of chunk first-year-map</p>
+</div>
+
+Zooming to the City of Vancouver takes the coverage edges out of the frame
+entirely, so what remains is close to a map of when the city's streets were
+built --- or, at the margins, of when a lane or a cul-de-sac was first thought
+worth digitizing.
+
+
+``` r
+plot_first_year(city, "City of Vancouver streets by vintage",
+                linewidth = 0.25)
+```
+
+<div class="figure">
+<img src="canstreet-vancouver-core-map-1.png" alt="City of Vancouver streets coloured by the first vintage each segment appears in" width="100%" />
+<p class="caption">plot of chunk core-map</p>
+</div>
+
+## Matching across forty-five years
+
+The expectation going in was that the Area Master Files would be the weak link:
+hand-digitized from map sheets, stored as NAD27 UTM coordinates, packed
+two decimal digits to the byte. The calibration says otherwise.
+
+
+``` r
+temporal_network_calibration("vancouver")
+#> # A tibble: 8 × 10
+#>   vintage tolerance_m n_pairs   recall_p50  recall_p90 disagree_10 disagree_25
+#>     <int>       <dbl>   <int>        <dbl>       <dbl>       <dbl>       <dbl>
+#> 1    2016          10   68868  0.000000814  0.00000191      0.0036      0.0038
+#> 2    2011          10   66875  0            0               0.0099      0.0105
+#> 3    2006          37   52408 11.6         36.5             0.106       0.123 
+#> 4    2001          36   49702 11.2         35.3             0.107       0.122 
+#> 5    1996          38   45630 15.7         37.9             0.277       0.268 
+#> 6    1991          38   43965 15.7         37.7             0.283       0.276 
+#> 7    1981          34   41377 11.0         33.1             0.245       0.256 
+#> 8    1976          37   36687 11.5         36.4             0.269       0.28  
+#> # ℹ 3 more variables: disagree_40 <dbl>, dx <dbl>, dy <dbl>
+```
+
+`recall_p50` is the everyday positional disagreement against 2021, measured on
+roads the two files agree on the name of. 1976 and 1981 come in at 11.5 m and
+11.0 m --- *better* than the 1991 and 1996 shapefiles at 15.7 m, and on a par
+with 2001 and 2006. The 1970s map sheets were drawn carefully; what improves
+after 2006 is not so much accuracy as the density of vertices, and 2011 and
+2016 share their base geometry with 2021 outright, which is why they calibrate
+to the 10 m floor.
+
+The crosswalk records how each year's segments were matched:
+
+
+``` r
+get_temporal_network_sources("vancouver") |>
+  count(vintage, match_kind) |>
+  arrange(vintage, desc(n)) |>
+  collect()
+#> # A tibble: 33 × 3
+#>    vintage match_kind        n
+#>      <int> <chr>         <dbl>
+#>  1    1976 geometry+name 27972
+#>  2    1976 geometry      15283
+#>  3    1976 name_rescue    5206
+#>  4    1976 spine           298
+#>  5    1981 geometry+name 30977
+#>  6    1981 geometry      15697
+#>  7    1981 name_rescue    5871
+#>  8    1981 spine           822
+#>  9    1991 geometry+name 39377
+#> 10    1991 geometry      19340
+#> # ℹ 23 more rows
+```
+
+`name_rescue` is the same-name match at long range that exists because older
+files draw a long arterial as a coarse chord the modern geometry departs from.
+It carries a real share of the two oldest vintages, and it is recorded rather
+than folded in, so a stricter reading is a filter away.
+
+## The raw Area Master File
+
+The two oldest vintages reach the database through a parser written for this
+package, because no GIS driver opens the format: fixed-width mainframe records,
+113 bytes in 1976 and 95 in 1981, the second still in EBCDIC with
+packed-decimal coordinates. `read_amf()` exposes it directly, as segments or as
+the node records the file actually stores:
+
+
+``` r
+amf <- canstreet_download(1976)
+nodes <- read_amf(amf$path[amf$filename == "vancouver.data"], nodes = TRUE)
+
+nodes |>
+  select(sheet_name, feature, seq_no, name, type, class, x, y, zone) |>
+  head(5)
+#> # A tibble: 5 × 9
+#>   sheet_name   feature seq_no name  type  class      x       y  zone
+#>   <chr>          <int>  <int> <chr> <chr> <chr>  <dbl>   <dbl> <int>
+#> 1 BOWEN ISLAND    1000     60 ADAMS RD    <NA>  470779 5467091    10
+#> 2 BOWEN ISLAND    1000     65 ADAMS RD    <NA>  470634 5467057    10
+#> 3 BOWEN ISLAND    1000     70 ADAMS RD    <NA>  470493 5467025    10
+#> 4 BOWEN ISLAND    1000     75 ADAMS RD    <NA>  470431 5467051    10
+#> 5 BOWEN ISLAND    1000     80 ADAMS RD    <NA>  470275 5467037    10
+```
+
+A node carries its feature's name and type, a class where the feature is
+something other than an ordinary street, the civic address range on each side,
+and a NAD27 UTM coordinate in the zone its map sheet belongs to. A segment is
+the block face between two consecutive nodes of a chain --- a finer unit than
+the later files use, median length about 100 m, which is why 1976 contributes
+as many segments as it does over so small an area.
+
+## Attribution
+
+Source data are © Statistics Canada, distributed under the
+[Statistics Canada Open Licence](https://www.statcan.gc.ca/en/reference/licence).
+Cite the product and reference year in anything you publish from it.

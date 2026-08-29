@@ -268,6 +268,12 @@ Established by reading the actual files, not the documentation. Trust these over
   Alexander to Powell resolves to 100–198 and 101–199, and in bulk: of the fully addressed faces,
   100% have the same parity at both ends of a side, 100% have opposite parity across the street, and
   96% span under 200 civic numbers.
+- **The AMF geometry is not the weak link the age suggests.** Calibrated against 2021
+  over the Vancouver CMA, `recall_p50` is 11.5 m for 1976 and 11.0 m for 1981 -- *lower*
+  than 1991's and 1996's 15.7 m, and on a par with 2001 (11.2) and 2006 (11.6). Their
+  tolerances land at 37 and 34 m, inside the [10, 40] clamp rather than pinned to it. What
+  improves after 2006 is vertex density, not registration; 2011 and 2016 clamp to the 10 m
+  floor because they share 2021's base geometry.
 - **The AMF datum is NAD27, verified rather than assumed.** The zone is stated per map sheet
   (`cs_amf_zone_crs()` = `26700 + zone`), and a file spans zones. The 1976 node at Main and Hastings
   (492833, 5458561) lands within 13 m of the intersection through EPSG:26710 and 200 m away through
@@ -413,6 +419,18 @@ across boundary revisions, and 1996, 2001 and 2006 carry no region columns at al
 NULL over all 2,053,112 rows). Each vintage's own
 `csduid_l` still goes to the crosswalk, which is what makes `temporal_network_region_drift()`
 possible — it recovers the annexation of 54.7 km of road into Airdrie between 2011 and 2016.
+
+**Nine vintages over the Vancouver CMA build in 4.4 min** (85,704 segments, 11,381 km;
+1976 6,462 km -> 1981 7,026 -> 1991 9,281 -> 1996 9,439 -> 2001 9,946 -> 2006 10,067 ->
+2011 10,209 -> 2016 10,371 -> 2021 10,484 -- strictly monotone, 829 superseded pieces
+dropped). `first_year` is dominated by coverage, not construction: 1991 alone adds 2,435 km
+CMA-wide, which is the Street Network File reaching past the 1981 urban envelope into the
+Fraser Valley, not a year Vancouver built 2,435 km of road. Inside the City of Vancouver
+CSD, where coverage was complete in 1976, 91% of length has `first_year == 1976` against
+57% CMA-wide. That contrast is what `vignettes/canstreet-vancouver.Rmd.orig` is built
+around, and it is why that vignette subsets the city with a *polygon*: `csduid_l` on a
+tnet row comes from the spine vintage, and every vintage before 2011 carries none, so an
+attribute filter would drop exactly the oldest segments.
 
 **Region scale is fast; national is not solved.** The Calgary CMA over six vintages builds in ~25 s
 (75,662 segments, 12,397 km; 1996 4,864 km → 2001 9,254 → 2006 10,145 → 2011 10,643 → 2016 11,088

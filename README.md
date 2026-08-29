@@ -161,13 +161,15 @@ Cochrane.
 The years are yours to pick: any two or more vintages in any spacing, `NULL` for
 everything the cache already holds, and a second build under another name can
 use a different set. `vignette("canstreet-temporal")` works the Calgary pilot
-through end to end.
+through end to end, and `vignette("canstreet-vancouver")` builds the full
+nine-vintage series over the Vancouver CMA -- 1976 to 2021, four file formats --
+to show what a segment's first year does and does not mean.
 
 `within = NULL` builds the whole country, but region-scoped builds are the
 supported scale for now: a national two-vintage build spilled over 32 GB of
 temporary storage in the coverage pass on the machine this was developed on,
 and did not finish. A CMA-sized region takes about 20 seconds for five
-vintages.
+vintages, and about four minutes for nine.
 
 ## Data and coverage
 
@@ -195,9 +197,12 @@ street as a chain of nodes in NAD27 UTM. `read_amf()` parses either release --
 1976 writes its coordinates as text, 1981 is an EBCDIC original whose
 coordinates are packed decimal -- into block-face segments carrying the street
 name, the feature class and the civic address range on each side. They import
-like any other vintage, and their geometry stands up: 89-92% of their road
-length has a 1991 Street Network File arc within 20 m of its midpoint, and
-95-96% within 40 m.
+like any other vintage, and their geometry stands up better than their age
+suggests: 89-92% of their road length has a 1991 Street Network File arc within
+20 m of its midpoint, and 95-96% within 40 m. Calibrated against 2021 over the
+Vancouver CMA, the median positional disagreement on same-name roads is 11.5 m
+for 1976 and 11.0 m for 1981 -- lower than the 15.7 m of the 1991 and 1996
+shapefiles.
 
 Two caveats from that page carry straight into any analysis of change over time.
 Statistics Canada states that **"topological accuracy takes precedence over
