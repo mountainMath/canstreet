@@ -40,6 +40,11 @@ to every future session. You can also set the `canstreet.cache_path` option, or
 the environment variable directly; `canstreet_cache_path()` reports what is in
 effect, and `show_canstreet_cache_path()` says where the setting came from.
 
+## Documentation
+
+Reference documentation for every function, along with the vignettes, is at
+<https://mountainmath.github.io/canstreet/>.
+
 ## Usage
 
 ```r
