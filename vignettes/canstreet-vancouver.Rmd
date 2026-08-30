@@ -228,14 +228,15 @@ coverage stopped. Only segments still present in 2021 are drawn.
 
 ``` r
 plot_first_year <- function(x, title, linewidth = 0.1) {
+  colours <- c("grey40",viridis::viridis(length(vints)-1, option = "turbo", direction = -1,
+                           begin = 0.12, end = 0.92))
   x |>
     filter(list_contains(years, 2021L)) |>
     collect_road_network() |>
     sf::st_transform(vancouver_crs) |>
     ggplot(aes(colour = factor(first_year))) +
     geom_sf(linewidth = linewidth) +
-    scale_colour_viridis_d(option = "turbo", direction = -1,
-                           begin = 0.12, end = 0.92) +
+    scale_colour_manual(values = colours) +
     labs(title = title,
          subtitle = "Colour is the first year the segment appears in the data",
          colour = "First year\nroad appears\nin data",
@@ -310,8 +311,8 @@ get_temporal_network_sources("vancouver") |>
 #>  2    1976 geometry      10548
 #>  3    1976 name_rescue    5649
 #>  4    1976 spine           306
-#>  5    1981 geometry+name 35153
-#>  6    1981 geometry      11102
+#>  5    1981 geometry+name 35098
+#>  6    1981 geometry      11157
 #>  7    1981 name_rescue    6409
 #>  8    1981 spine           824
 #>  9    1991 geometry+name 43618

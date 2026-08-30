@@ -23,14 +23,6 @@ This vignette is precomputed, but the code is what you would run.
 ``` r
 library(canstreet)
 library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
 library(ggplot2)
 ```
 
@@ -262,8 +254,8 @@ get_temporal_network_sources("calgary") |>
 #>  2    1996 name_rescue    6607
 #>  3    1996 geometry       6476
 #>  4    1996 spine           371
-#>  5    2001 geometry+name 32490
-#>  6    2001 geometry       9762
+#>  5    2001 geometry+name 32491
+#>  6    2001 geometry       9761
 #>  7    2001 name_rescue    8972
 #>  8    2001 spine           296
 #>  9    2006 geometry+name 38878
@@ -295,12 +287,16 @@ The harmonized network, coloured by the year each segment first appears:
 
 
 ``` r
+colours <- c("grey40", viridis::viridis(length(vints) - 1, option = "turbo",
+                                        direction = -1, begin = 0.12, end = 0.92))
+
 get_temporal_network("calgary") |>
   filter(list_contains(years, 2021L)) |>
   collect_road_network() %>%
   sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
   ggplot(aes(colour=factor(first_year))) +
-  geom_sf(fill = "grey85",  linewidth=0.1) +
+  geom_sf(linewidth=0.1) +
+  scale_colour_manual(values = colours) +
   labs(title = "Calgary CMA road network by vintage",
        colour="First year\nroad appears\nin data",
        caption="StatCan Road/Street network files") +

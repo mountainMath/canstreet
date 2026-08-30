@@ -154,14 +154,15 @@ coverage stopped. Only segments still present in 2021 are drawn.
 
 ```{r first-year-map, fig.alt = "Vancouver CMA road network coloured by the first vintage each segment appears in, 1976 to 2021"}
 plot_first_year <- function(x, title, linewidth = 0.1) {
+  colours <- c("grey40",viridis::viridis(length(vints)-1, option = "turbo", direction = -1,
+                           begin = 0.12, end = 0.92))
   x |>
     filter(list_contains(years, 2021L)) |>
     collect_road_network() |>
     sf::st_transform(vancouver_crs) |>
     ggplot(aes(colour = factor(first_year))) +
     geom_sf(linewidth = linewidth) +
-    scale_colour_viridis_d(option = "turbo", direction = -1,
-                           begin = 0.12, end = 0.92) +
+    scale_colour_manual(values = colours) +
     labs(title = title,
          subtitle = "Colour is the first year the segment appears in the data",
          colour = "First year\nroad appears\nin data",

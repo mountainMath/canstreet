@@ -175,12 +175,16 @@ get_temporal_network_sources("calgary") |>
 The harmonized network, coloured by the year each segment first appears:
 
 ```{r first-year-map, fig.alt = "Calgary CMA road network coloured by the first vintage each segment appears in"}
+colours <- c("grey40", viridis::viridis(length(vints) - 1, option = "turbo",
+                                        direction = -1, begin = 0.12, end = 0.92))
+
 get_temporal_network("calgary") |>
   filter(list_contains(years, 2021L)) |>
   collect_road_network() %>%
   sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
   ggplot(aes(colour=factor(first_year))) +
-  geom_sf(fill = "grey85",  linewidth=0.1) +
+  geom_sf(linewidth=0.1) +
+  scale_colour_manual(values = colours) +
   labs(title = "Calgary CMA road network by vintage",
        colour="First year\nroad appears\nin data",
        caption="StatCan Road/Street network files") +

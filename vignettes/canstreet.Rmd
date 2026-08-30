@@ -187,8 +187,8 @@ get_road_network(c(1996, 2006, 2021)) |>
 #>   vintage segments      km
 #>     <int>    <dbl>   <dbl>
 #> 1    2006  1869564 1326099
-#> 2    2021  2242117 1170167
-#> 3    1996   629574  167238
+#> 2    1996   629574  167238
+#> 3    2021  2242117 1170167
 ```
 
 1996 is urban areas only. The 2006–2021 drop is in the source data, not the
