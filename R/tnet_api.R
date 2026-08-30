@@ -243,9 +243,20 @@ get_temporal_network <- function(name, within = NULL,
 #' `dist_m`, `name_match` and `bearing_diff` let a caller apply a stricter
 #' standard than the build used.
 #'
-#' `csduid` and `csdname` are that year's own values, not the newest year's, so
-#' comparing them across years shows where census subdivision boundaries or
-#' codes changed under a road that did not move.
+#' `src_name`, `csduid` and `csdname` are that year's own values, not the
+#' newest year's. Comparing `csduid` across years shows where census
+#' subdivision boundaries or codes changed under a road that did not move;
+#' comparing `src_name` against the segment's `name` -- which is the spine
+#' vintage's -- shows where a road was renamed. A rename is
+#' `match_kind = "geometry"`: the arcs agree on position and bearing while the
+#' folded names do not. Note that a blank `src_name` there is a road that
+#' gained a name rather than one that changed it, and that the same-name rescue
+#' cannot match across a rename by construction, so a road that was both
+#' renamed and coarsely digitized reads as a retirement plus a new road.
+#'
+#' `source_file` is part of the arc's identity, not decoration: `source_id` is
+#' unique only within one file for the AMF and SNF vintages, so joining a
+#' crosswalk row back to its vintage table on `source_id` alone fans out.
 #'
 #' @param name Build name.
 #' @param cache_path Cache directory. Defaults to [canstreet_cache_path()].
@@ -257,6 +268,13 @@ get_temporal_network <- function(name, within = NULL,
 #' library(dplyr)
 #' get_temporal_network_sources("calgary") |>
 #'   count(vintage, match_kind) |>
+#'   collect()
+#'
+#' # Candidate renames: the names disagree but the geometry does not.
+#' get_temporal_network_sources("calgary") |>
+#'   filter(match_kind == "geometry", src_name != "") |>
+#'   inner_join(get_temporal_network("calgary"), by = "segment_id") |>
+#'   count(vintage, src_name, name, sort = TRUE) |>
 #'   collect()
 #' }
 #' @export
@@ -420,6 +438,14 @@ remove_temporal_network <- function(name,
 cs_require_build <- function(con, name) {
   if (cs_db_has_build(con, name)) return(invisible(TRUE))
   have <- cs_db_builds(con)
+  # Present but written by an older layout is a different fact from absent,
+  # and the remedy is the same call, so say which one it is.
+  if (name %in% have) {
+    stop("The temporal network build \"", name, "\" was written by an older ",
+         "layout of this package and cannot be read.\n",
+         "Rebuild it with `build_temporal_network(\"", name, "\", c(...))`.",
+         call. = FALSE)
+  }
   stop("No temporal network build named \"", name, "\" in this cache.\n",
        if (length(have)) paste0("Available: ", paste(have, collapse = ", "),
                                 ".\n") else "",

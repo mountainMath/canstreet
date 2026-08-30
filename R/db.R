@@ -343,9 +343,13 @@ cs_rebuild_segments_view <- function(con) {
 #' Kept separate from `cs_schema_version()`: a change to the matching algorithm
 #' invalidates the derived tables but not the imported vintages, and must not
 #' force a re-download of ~7 GB of source archives.
+#'
+#' 2: the crosswalk carries `source_file` and `src_name`, so a source arc is
+#' identified by the pair the AMF and SNF vintages actually key on and its own
+#' year's street name is readable without joining back to the vintage table.
 #' @keywords internal
 #' @noRd
-cs_tnet_schema_version <- function() 1L
+cs_tnet_schema_version <- function() 2L
 
 # A separate table rather than more rows in `canstreet_metadata`: that table
 # keys on `vintage INTEGER`, and `cs_db_vintages()` scans it, so a build name

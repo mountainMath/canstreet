@@ -185,7 +185,8 @@ write_fixture_pair <- function(con) {
     arc("o4", "EPSILON", fx_line(300)),    # one arc that 2021 splits in two
     arc("o5", "ETA",     fx_line(500)),    # present only in 1996
     arc("o6", "THETA",   fx_line(600, len = 1000)),  # coarse chord
-    arc("o7", "SOME RIVER", fx_line(800), class = "WCR"))  # not a road at all
+    arc("o7", "SOME RIVER", fx_line(800), class = "WCR"),  # not a road at all
+    arc("o8", "OLD MAIN", fx_line(900)))   # the same road, renamed by 2021
   new <- rbind(
     arc("n1", "ALPHA",   fx_line(0)),
     arc("n2", "BETA",    fx_line(108)),
@@ -193,7 +194,8 @@ write_fixture_pair <- function(con) {
     arc("n4", "EPSILON", fx_line(300, len = 100)),
     arc("n5", "EPSILON", fx_line(300, x0 = 100, len = 100)),
     arc("n6", "ZETA",    fx_line(400)),    # present only in 2021
-    arc("n7", "THETA",   fx_bow(600)))     # the same road, finely digitized
+    arc("n7", "THETA",   fx_bow(600)),     # the same road, finely digitized
+    arc("n8", "NEW MAIN", fx_line(908)))   # 8 m from OLD MAIN, renamed
   write_fixture_arcs(con, 1996, old)
   write_fixture_arcs(con, 2021, new)
   invisible(c(1996L, 2021L))

@@ -139,6 +139,31 @@ test_that("the crosswalk records how each year was matched", {
                "name_rescue")
 })
 
+test_that("the crosswalk carries each year's own name and source file", {
+  skip_if_no_duckdb_spatial()
+  con <- local_tnet_con()
+  write_fixture_pair(con)
+  build_fixture(con)
+  xw <- tibble::as_tibble(DBI::dbGetQuery(con, "SELECT * FROM tnet_fx_src;"))
+  tnet <- tibble::as_tibble(DBI::dbGetQuery(
+    con, "SELECT segment_id, name FROM tnet_fx;"))
+  xw <- merge(xw, tnet, by = "segment_id")
+
+  # `src_name` is the arc's name in its own year, where `name` is the spine's.
+  expect_equal(unique(xw$src_name[xw$name == "BETA"]), "BETA")
+
+  # A road renamed between the two years is `match_kind = "geometry"`: the
+  # positions agree and the names do not, and both names are readable from
+  # the crosswalk without joining back to the vintage table.
+  ren <- xw[xw$name == "NEW MAIN", ]
+  expect_equal(ren$src_name[ren$vintage == 1996], "OLD MAIN")
+  expect_equal(ren$match_kind[ren$vintage == 1996], "geometry")
+  expect_false(ren$name_match[ren$vintage == 1996])
+  expect_equal(ren$src_name[ren$vintage == 2021], "NEW MAIN")
+
+  expect_true(all(xw$source_file == "fixture"))
+})
+
 test_that("the tolerance is calibrated from the data", {
   skip_if_no_duckdb_spatial()
   con <- local_tnet_con()
@@ -221,7 +246,7 @@ test_that("an sf polygon clips the build to a region", {
   con <- cs_connect(cache, read_only = FALSE)
   write_fixture_pair(con)
 
-  # The fixture's arcs run east from x = 0 at nine different y values, so a box
+  # The fixture's arcs run east from x = 0 at increasing y values, so a box
   # over the south-west quadrant has a known answer: it halves every 200 m arc
   # and excludes outright everything north of y = 350.
   region <- sf::st_sfc(sf::st_polygon(list(rbind(

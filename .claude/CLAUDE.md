@@ -507,6 +507,24 @@ chord that departs from the road by more than any sane tolerance — without it 
 ~1,180 km of spurious road loss for 2006→2021. `match_kind` in the crosswalk separates them, so a
 caller who distrusts the rescue can drop it.
 
+**The crosswalk carries each source arc's own name and file** — `src_name` and `source_file`, added
+at `tnet_schema_version` 2, which invalidates any build written before it. Both are identity, not
+decoration: `source_id` is unique only within one file for the AMF and SNF vintages, so joining a
+crosswalk row back to its vintage table on `source_id` alone fans out (measured on the Vancouver
+build: 1976 48,695 rows → 48,813, 1996 69,912 → 70,329, with some segments picking up two different
+names). `src_name` is prefixed rather than named `name` because the intended use is a join against
+the main table, whose `name` is the spine vintage's.
+
+**A rename is `match_kind = 'geometry'`** — the arcs agree on position and bearing while the folded
+names do not. Vancouver's pool runs 10,548 such pairs for 1976 down to 587 for 2016, and it is not
+all renames: roughly half of 2001's 8,868 have a blank name on one side, which is a road that gained
+a name rather than one that changed it. What is left mixes real renames (`South Ridge` →
+`Southridge`), StatCan's own typo fixes (`Rennie` → `Rannie`, `Ione Island Causeway` → `Iona Island
+Causeway`) and naming-convention changes (`Fraser Delta Thruway` → `99`, `Tenth` → `10th`), so any
+rename product has to classify, not just diff. Note the blind spot: rule B joins on exact folded-name
+equality and so **cannot match across a rename by construction**, which means a road that was both
+renamed and coarsely digitized reads as a retirement plus a new road, not a rename.
+
 **Calibration keys on `name_disagree`, not on coverage.** The coverage-versus-tolerance curve is
 smooth and has no knee, so it cannot choose a tolerance. `name_disagree` — the share of arcs whose
 *nearest* arc within *d* carries a different name — stays flat while the tolerance absorbs positional

@@ -160,6 +160,11 @@ cs_tnet_stage <- function(con, vintage, region = NULL, roads_only = TRUE,
     q <- as.character(DBI::dbQuoteIdentifier(con, a))
     if (a %in% c("class", "rank")) paste0(q, "::VARCHAR AS ", q) else q
   }, character(1)), collapse = ", ")
+  # `source_file` is not a target-schema column, but the crosswalk needs it:
+  # `source_id` is unique only within one source file for the AMF and SNF
+  # vintages -- 1991 numbers each of its 51 coverages from scratch -- so
+  # `(source_file, source_id)` is what identifies an arc of a given year.
+  cols <- paste0(DBI::dbQuoteIdentifier(con, "source_file"), ", ", cols)
   src <- DBI::dbQuoteIdentifier(con, cs_table_name(vintage))
 
   match_tbl <- cs_tnet_stage_name(vintage, "match")
@@ -320,7 +325,8 @@ cs_build_rescue_index <- function(con, match_tbl, out, name_far_m) {
   }
   DBI::dbExecute(con, paste0(
     "CREATE OR REPLACE TEMP TABLE ", DBI::dbQuoteIdentifier(con, out), " AS\n",
-    "SELECT o.source_id, o.name_fold, o.csduid_l, o.csdname_l, o.geom,\n",
+    "SELECT o.source_file, o.source_id, o.name, o.name_fold,\n",
+    "       o.csduid_l, o.csdname_l, o.geom,\n",
     "       cx, cy\n",
     "FROM ", DBI::dbQuoteIdentifier(con, match_tbl), " o,\n",
     "     unnest(range(", edge("xmin", "-"), ", ", edge("xmax", "+"),
@@ -909,7 +915,8 @@ cs_emit_crosswalk <- function(con, name, staged, specs, bearing_tol,
 
   DBI::dbExecute(con, paste0(
     "CREATE OR REPLACE TABLE ", tbl, " (\n",
-    "  segment_id BIGINT, vintage INTEGER, source_id VARCHAR,\n",
+    "  segment_id BIGINT, vintage INTEGER,\n",
+    "  source_file VARCHAR, source_id VARCHAR, src_name VARCHAR,\n",
     "  match_kind VARCHAR, dist_m DOUBLE, name_match BOOLEAN,\n",
     "  bearing_diff DOUBLE, csduid VARCHAR, csdname VARCHAR\n);"))
 
@@ -924,7 +931,8 @@ cs_emit_crosswalk <- function(con, name, staged, specs, bearing_tol,
     # through its grid-blocked index anyway.
     cand_cols <- paste0(
       "  SELECT e.segment_id, e.spine_vintage, e.name_fold AS sname, e.az,\n",
-      "         o.source_id, o.name_fold, o.csduid_l, o.csdname_l,\n",
+      "         o.source_file, o.source_id, o.name AS src_name,\n",
+      "         o.name_fold, o.csduid_l, o.csdname_l,\n",
       "         st_distance(o.geom, e.mid) AS d,\n",
       "         cs_local_az(o.geom, e.mid) AS oaz\n")
     cand <- paste0(
@@ -964,7 +972,9 @@ cs_emit_crosswalk <- function(con, name, staged, specs, bearing_tol,
       # every rule-A candidate ahead of every rescue candidate, and orders
       # within each by distance.
       "  SELECT segment_id, any_value(spine_vintage) AS spine_vintage,\n",
+      "         arg_min(source_file, tier * 1e9 + d) AS source_file,\n",
       "         arg_min(source_id, tier * 1e9 + d) AS source_id,\n",
+      "         arg_min(src_name, tier * 1e9 + d) AS src_name,\n",
       "         arg_min(d, tier * 1e9 + d) AS dist_m,\n",
       "         arg_min(tier, tier * 1e9 + d) AS tier,\n",
       "         arg_min(name_fold = sname, tier * 1e9 + d) AS name_match,\n",
@@ -973,7 +983,8 @@ cs_emit_crosswalk <- function(con, name, staged, specs, bearing_tol,
       "         arg_min(csdname_l, tier * 1e9 + d) AS csdname\n",
       "  FROM ranked GROUP BY segment_id\n",
       ")\n",
-      "SELECT segment_id, ", v, " AS vintage, source_id,\n",
+      "SELECT segment_id, ", v, " AS vintage, source_file, source_id,\n",
+      "       src_name,\n",
       "       CASE WHEN spine_vintage = ", v, " THEN 'spine'\n",
       "            WHEN tier = 1 THEN 'name_rescue'\n",
       "            WHEN name_match THEN 'geometry+name'\n",

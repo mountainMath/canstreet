@@ -25,15 +25,33 @@ longer range found it, which is the case for coarsely digitized long arcs.
 standard than the build used.
 }
 \details{
-\code{csduid} and \code{csdname} are that year's own values, not the newest year's, so
-comparing them across years shows where census subdivision boundaries or
-codes changed under a road that did not move.
+\code{src_name}, \code{csduid} and \code{csdname} are that year's own values, not the
+newest year's. Comparing \code{csduid} across years shows where census
+subdivision boundaries or codes changed under a road that did not move;
+comparing \code{src_name} against the segment's \code{name} -- which is the spine
+vintage's -- shows where a road was renamed. A rename is
+\code{match_kind = "geometry"}: the arcs agree on position and bearing while the
+folded names do not. Note that a blank \code{src_name} there is a road that
+gained a name rather than one that changed it, and that the same-name rescue
+cannot match across a rename by construction, so a road that was both
+renamed and coarsely digitized reads as a retirement plus a new road.
+
+\code{source_file} is part of the arc's identity, not decoration: \code{source_id} is
+unique only within one file for the AMF and SNF vintages, so joining a
+crosswalk row back to its vintage table on \code{source_id} alone fans out.
 }
 \examples{
 \dontrun{
 library(dplyr)
 get_temporal_network_sources("calgary") |>
   count(vintage, match_kind) |>
+  collect()
+
+# Candidate renames: the names disagree but the geometry does not.
+get_temporal_network_sources("calgary") |>
+  filter(match_kind == "geometry", src_name != "") |>
+  inner_join(get_temporal_network("calgary"), by = "segment_id") |>
+  count(vintage, src_name, name, sort = TRUE) |>
   collect()
 }
 }
