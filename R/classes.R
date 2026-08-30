@@ -42,9 +42,9 @@
 #' files carry; import stores the labels those stand for, so anything comparing
 #' against the stored column goes through `cs_class_label()` first.
 #'
-#' The Area Master Files are the one product with a categorization but no
-#' published vocabulary -- see `cs_categories_amf()` for why List A cannot be
-#' reused for them -- so their codes are given here and stay bare in the data.
+#' The Area Master File codes are given here as the two-character
+#' (feature type, sub-type) pairs the files carry; `cs_domain_amf_class()`
+#' labels the eleven of them List A accounts for, and `OB` and `Z` stay bare.
 #'
 #' @param vintage Reference year.
 #' @return A tibble of `code`, `category` and `status`, or `NULL` for a vintage
@@ -71,14 +71,14 @@ cs_class_categories <- function(vintage) {
 # the bridge or tunnel. Nothing in this vocabulary distinguishes a road that was
 # not yet built.
 #
-# It is read from the data because no guide for it survives. The 1991 Street
-# Network File guide has an Area Master File variant (`snfamf.pdf`) that
-# decomposes the class into feature type, sub-type and street type, and it
-# explains most of these two-character codes -- but it makes `IN` "Falls / Dam"
-# where the data reads as island, and `Z` "hydroline, telephone, fence,
-# pipeline" where the Area Master File's `Z` arcs are Kingsway and Lougheed
-# Highway. 1976 and 1981 use an earlier revision of the vocabulary, so List A
-# cannot be read across to them.
+# The categories are read from the data, not from a guide. List A of the 1991
+# Street Network File guide's Area Master File variant (`snfamf.pdf`) does
+# decompose a class into feature type, sub-type and street type, and its first
+# two columns are these very codes -- `cs_domain_amf_class()` takes the labels
+# from it -- but its road/non-road split cannot simply be inherited. `Z` is the
+# case that settles it: List A calls the `Z` family hydroline, telephone line,
+# fence and pipeline, while the Area Master File's `Z` arcs are Kingsway,
+# Lougheed Highway and Grandview Highway. The arcs win.
 cs_categories_amf <- function() {
   tibble::tribble(
     ~code, ~category,
@@ -340,8 +340,9 @@ cs_roads_only_sql <- function(vintages, qualify = length(vintages) > 1L,
 #'   in the manifest.
 #' @return A [tibble::tibble()] of `vintage`, `code`, `label`, `category`,
 #'   `status` and `road`. `label` is the value the class column is stored as,
-#'   and is the code itself for the Area Master Files, whose vocabulary
-#'   Statistics Canada never published.
+#'   which is the code itself wherever no guide defines it -- the Area Master
+#'   Files' `OB` and `Z`, and any code a vintage carries that its own guide
+#'   omits.
 #' @seealso [canstreet_domains()] for the published vocabularies,
 #'   [get_road_network()] for the filter itself.
 #'

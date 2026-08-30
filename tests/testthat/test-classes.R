@@ -16,9 +16,18 @@ test_that("every published class code is categorized exactly once", {
                       c("operational", "planned", "under_construction",
                         "unknown")),
                 info = as.character(v))
-    # The Area Master Files are the one product categorized without a published
-    # vocabulary to check against.
-    if (!is.null(dom)) expect_setequal(cats$code, dom$code)
+    # Every published code has to be categorized. The reverse holds too, except
+    # for the Area Master Files, which carry two codes List A does not account
+    # for -- those are categorized from the arcs and stay unlabelled.
+    if (!is.null(dom)) {
+      expect_true(all(dom$code %in% cats$code), info = as.character(v))
+      extra <- setdiff(cats$code, dom$code)
+      if (identical(cs_source(v)$product[1], "AMF")) {
+        expect_setequal(extra, c("OB", "Z"))
+      } else {
+        expect_length(extra, 0L)
+      }
+    }
   }
 })
 
@@ -94,10 +103,12 @@ test_that("each vintage is restricted to its own idea of a road", {
   # ordinary street unclassed, as the SNF does, but with its own vocabulary.
   amf <- cs_road_class_sql(1976)
   expect_match(amf, "class IS NULL OR class IN")
-  expect_true(all(vapply(c("HN", "Z", "BN"),
+  # Named by the labels that were stored, except `Z`, which no guide defines
+  # and which therefore stays the bare code in the column and in the predicate.
+  expect_true(all(vapply(c("Highway", "Z", "Bridge or tunnel"),
                          function(k) grepl(paste0("'", k, "'"), amf),
                          logical(1))))
-  expect_false(grepl("'RN'", amf))  # railways are not among them
+  expect_false(grepl("'Railway'", amf))  # railways are not among them
   expect_identical(cs_road_class_sql(1981), amf)
 
   # The column is nameable, so the predicate can be applied to an alias.
@@ -150,9 +161,11 @@ test_that("canstreet_road_classes reports what each vintage keeps", {
   expect_identical(sum(!r$road), 1L)
   expect_identical(r$label[r$code == "23"], "Local")
 
-  # The Area Master Files have no published labels, so the label is the code.
+  # The Area Master Files are labelled from List A's first two columns, except
+  # for the two codes it does not account for, which stay bare.
   amf <- canstreet_road_classes(1976)
-  expect_identical(amf$label, amf$code)
+  expect_identical(amf$label[amf$code == "HN"], "Highway")
+  expect_setequal(amf$label[amf$code %in% c("OB", "Z")], c("OB", "Z"))
   expect_identical(sort(amf$code[amf$road]), c("BN", "HN", "Z"))
 
   # A vintage with no class column contributes nothing, and an all-empty

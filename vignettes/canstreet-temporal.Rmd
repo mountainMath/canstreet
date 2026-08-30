@@ -250,15 +250,15 @@ get_temporal_network_sources("calgary") |>
 #> # A tibble: 21 × 3
 #>    vintage match_kind        n
 #>      <int> <chr>         <dbl>
-#>  1    1996 geometry+name 25911
+#>  1    1996 geometry+name 25912
 #>  2    1996 name_rescue    6607
-#>  3    1996 geometry       6476
+#>  3    1996 geometry       6475
 #>  4    1996 spine           371
 #>  5    2001 geometry+name 32491
 #>  6    2001 geometry       9761
 #>  7    2001 name_rescue    8972
 #>  8    2001 spine           296
-#>  9    2006 geometry+name 38878
+#>  9    2006 geometry+name 38875
 #> 10    2006 name_rescue   12373
 #> # ℹ 11 more rows
 ```

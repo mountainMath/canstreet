@@ -307,16 +307,16 @@ get_temporal_network_sources("vancouver") |>
 #> # A tibble: 33 × 3
 #>    vintage match_kind        n
 #>      <int> <chr>         <dbl>
-#>  1    1976 geometry+name 32192
-#>  2    1976 geometry      10548
+#>  1    1976 geometry+name 32191
+#>  2    1976 geometry      10549
 #>  3    1976 name_rescue    5649
 #>  4    1976 spine           306
-#>  5    1981 geometry+name 35098
-#>  6    1981 geometry      11157
+#>  5    1981 geometry+name 35110
+#>  6    1981 geometry      11145
 #>  7    1981 name_rescue    6409
 #>  8    1981 spine           824
-#>  9    1991 geometry+name 43618
-#> 10    1991 geometry      14605
+#>  9    1991 geometry+name 43615
+#> 10    1991 geometry      14608
 #> # ℹ 23 more rows
 ```
 

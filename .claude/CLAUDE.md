@@ -347,6 +347,8 @@ Established by reading the actual files, not the documentation. Trust these over
   the bridge or tunnel, and `Z` an arterial (Kingsway, Lougheed Highway; 63% addressed, the only
   classed value that is). `cs_categories_amf()` keeps those three plus the unclassed, which is
   6,574.6 of 1976's 8,857 km and 10,497.3 of 1981's 15,508 km — the same ~2/3 the SNF filter keeps.
+  The codes are stored as labels like every other vintage's; see *List A labels the Area Master
+  Files* below for where those come from and for the two that stay bare.
 - **AMF node-pair segments are block faces.** Median length 102 m, and the four address fields at a
   node are, in order, to-left, to-right, from-left, from-right, so a face takes `from` from the node
   it starts at and `to` from the node it ends at. Verified on Main Street in Vancouver, where
@@ -390,14 +392,28 @@ Established by reading the actual files, not the documentation. Trust these over
   fixed-width `NAME` field packs `PROP.`/`PROJ.` as a suffix on 2,182 arcs / 470 km in 1991 and 932 /
   260 km in 1996 — an order of magnitude more than `HPR` — and those arcs are classed as ordinary
   highways. Deliberately left alone: it is a name-parsing question, not a class one.
-- **Do not reuse List A for the Area Master Files.** The 1991 guide's AMF-format variant
-  (`snfamf.pdf`) decomposes the class into (feature type, sub-type, street type), which explains most
-  of the 1976/1981 two-character codes as type + sub-type — `HN` highway, `WN` watercourse, `SN`
-  shoreline, `RN` railway, `BN` bridge, `MB`/`CB`/`GB`/`UB` the boundary families, `PP` property. But
-  it makes `IN` "Falls/Dam/other associated" where the data reads as island, and `Z` "hydroline,
-  telephone, fence, pipeline" where the AMF's `Z` arcs are Kingsway and Lougheed Highway and 63%
-  addressed. The 1976/1981 vocabulary is an earlier revision, no guide for it survives in any
-  deposit, so `cs_class_domain()` returns `NULL` for them and the codes are stored as they are.
+- **List A labels the Area Master Files, but does not categorize them.** No guide for the 1976 or
+  1981 AMF survives — the two Abacus deposits ship the flat files and nothing else, an Abacus search
+  for "Area Master File" returns five datasets and no documentation, and publications.gc.ca,
+  archive.org, Library and Archives Canada and the data-library catalogues have none either. What
+  does the job instead is the 1991 guide's AMF-format variant (`snfamf.pdf`, in the 1991 Abacus
+  deposit): its List A classifies a feature as **(feature type, sub-type, street type)**, and the AMF
+  stores exactly the first two of those in its two-character class field. The third is an ordinary
+  List B street type in `type` — 1981's `HN` arcs carry `HY`, `WY`, `RD`, never List A's `SI`/`MU` —
+  so an AMF class names a *family*, and `cs_domain_amf_class()` labels it with the List A row whose
+  street type is blank: `HN` Highway, `BN` Bridge or tunnel, `RN` Railway, `WN`/`SN` the streamline-
+  and shoreline-defined water bodies, `IN` Associated hydrographic feature, `MB` Political boundary,
+  `CB` Geostatistical area boundary, `GB` Property boundary, `UB` Urban-rural boundary, `PP` Point
+  feature. Each was checked against its arcs (`HN` is the Trans-Canada and Highway 401, `BN` the
+  Lions Gate and Pattullo, `UB` is literally `URBAN RURAL BOUNDARY`). **Two codes stay bare**, which
+  is the design working as intended rather than a gap: `OB` (99 arcs) is not a List A combination at
+  all — the sub-type letter reads as the geometric role, `N` linear, `B` boundary, `P` point, and
+  List A pairs the `O` topography family with `N` only — and `Z` (189 arcs, 1976 only) is where the
+  guide and the data flatly disagree, List A calling the `Z` family hydroline/telephone/fence/
+  pipeline where the arcs are Kingsway, Lougheed Highway and Grandview Highway, 63% addressed. So
+  the *labels* come from List A and the *categories* still come from the arcs; do not read the
+  road/non-road split across from the guide. Verified after relabelling: the counts are unchanged,
+  1976 keeping 45,999 arcs / 6,574.6 km and 1981 75,220 / 10,497.3.
 - Segment counts and length: 1976 = 60,883 / 8,857 km, 1981 = 103,774 / 15,508 km, both BC urban
   only. All named; 1976 has 43,357 typed and 24,620 addressed, 1981 has 75,351 and 35,321.
 - **Identifier spellings**: `arc_id` (1991/1996), `RB_UID` (2001–2010), `NGD_ID` (2005), `NGD_UID`
@@ -516,8 +532,8 @@ names). `src_name` is prefixed rather than named `name` because the intended use
 the main table, whose `name` is the spine vintage's.
 
 **A rename is `match_kind = 'geometry'`** — the arcs agree on position and bearing while the folded
-names do not. Vancouver's pool runs 10,548 such pairs for 1976 down to 587 for 2016, and it is not
-all renames: roughly half of 2001's 8,868 have a blank name on one side, which is a road that gained
+names do not. Vancouver's pool runs 10,549 such pairs for 1976 down to 587 for 2016, and it is not
+all renames: roughly half of 2001's 8,869 have a blank name on one side, which is a road that gained
 a name rather than one that changed it. What is left mixes real renames (`South Ridge` →
 `Southridge`), StatCan's own typo fixes (`Rennie` → `Rannie`, `Ione Island Causeway` → `Iona Island
 Causeway`) and naming-convention changes (`Fraser Delta Thruway` → `99`, `Tenth` → `10th`), so any
@@ -528,12 +544,12 @@ renamed and coarsely digitized reads as a retirement plus a new road, not a rena
 `vignettes.orig/canstreet-renames.Rmd` is the classification worked end to end, scoped to the
 **City of Vancouver CSD** (built over the CMA for the halo, read over the city polygon — an attribute
 filter would drop the pre-2011 vintages, which carry no region columns). Its funnel is the measured
-shape of the problem: 16,096 raw name changes -> 3,239 after the matcher's own fold (case, accents,
-the numeric ordinal) -> 2,930 with both sides named -> *loosely matched* 1,795 segments / 143 km
+shape of the problem: 16,099 raw name changes -> 3,243 after the matcher's own fold (case, accents,
+the numeric ordinal) -> 2,934 with both sides named -> *loosely matched* 1,800 segments / 143 km
 (either side matched at 10 m or more), *street type moved between fields* 288 / 30.1 km, *spelling
-convention* 149 / 13.8 km, leaving 698 / 64.2 km of candidate rename. Of that, 80 of 265 name pairs
+convention* 149 / 13.8 km, leaving 697 / 64.0 km of candidate rename. Of that, 80 of 262 name pairs
 reverse — 1996 alone using `NORTH KENT`/`SOUTH KENT` where its neighbours write `KENT`, and the files
-disagreeing where one named structure ends (`ANDERSON` <-> `GRANVILLE`) — leaving 183 pairs / 44.7 km
+disagreeing where one named structure ends (`ANDERSON` <-> `GRANVILLE`) — leaving 182 pairs / 44.6 km
 that read as real, headed by Kent Avenue splitting into `E KENT`/`W KENT` in 2016 (105 segments in one
 window), `CONNAUGHT BRIDGE` -> `CAMBIE BRIDGE`, and the Stanley Park and Coal Harbour roads. Over the
 whole CMA the same pipeline runs 88,100 -> 30,183 -> 1,543 pairs / 448 km, whose largest single event
@@ -608,7 +624,7 @@ CMA-wide that were retiring as phantoms. Calgary, whose earliest vintage is 1996
 numbers its streets, moved by one segment / 0.2 km --- which is the control.
 
 **Region scale is fast; national is not solved.** The Calgary CMA over six vintages builds in ~25 s
-(75,662 segments, 12,397 km; 1996 4,864 km → 2001 9,254 → 2006 10,145 → 2011 10,643 → 2016 11,088
+(75,662 segments, 12,397 km; 1996 4,864 km → 2001 9,255 → 2006 10,145 → 2011 10,643 → 2016 11,088
 → 2021 11,505, and the 1996→2001 jump is coverage, not construction). Adding 1991 costs nothing:
 all seven vintages over the Calgary CSD envelope build in 19 s (65,631 segments, 8,143 km; 1991
 4,427 km → 1996 4,870 → 2001 5,930 → 2006 6,567 → 2011 6,919 → 2016 7,422 → 2021 7,727 — strictly

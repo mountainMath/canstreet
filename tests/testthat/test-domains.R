@@ -38,16 +38,23 @@ test_that("the vocabularies are per-vintage, not shared across the era", {
   expect_identical(cs_class_label(1991, "W"),
                    "Other Water body defined using streamline")
 
+  # The Area Master Files take their labels from the feature-type and sub-type
+  # columns of the same List A, in that guide's AMF-format variant.
+  expect_identical(cs_class_label(1976, "HN"), "Highway")
+  expect_identical(cs_class_label(1981, "GB"), "Property boundary")
+  expect_identical(cs_class_domain(1976), cs_class_domain(1981))
+  # `OB` is not a List A combination and `Z` contradicts the one it names, so
+  # neither is labelled.
+  expect_false(any(c("OB", "Z") %in% cs_class_domain(1976)$code))
+
   # And these have no published vocabulary at all.
-  expect_null(cs_class_domain(1976))
-  expect_null(cs_class_domain(1981))
   expect_null(cs_class_domain(2006))
   expect_null(cs_rank_domain(2006))
   expect_null(cs_rank_domain(1996))
 })
 
 test_that("a code with no published label translates to itself", {
-  expect_identical(cs_class_label(1976, c("HN", "Z")), c("HN", "Z"))
+  expect_identical(cs_class_label(1976, c("HN", "Z")), c("Highway", "Z"))
   expect_identical(cs_class_label(2021, "not-a-code"), "not-a-code")
   expect_identical(cs_class_label(2021, c("23", "not-a-code")),
                    c("Local", "not-a-code"))
@@ -58,7 +65,8 @@ test_that("canstreet_domains() reports what is stored", {
   expect_s3_class(all, "tbl_df")
   expect_named(all, c("vintage", "domain", "code", "label"))
   expect_setequal(unique(all$domain), c("class", "rank"))
-  expect_false(any(c(1976L, 1981L, 2006L) %in% all$vintage))
+  expect_false(2006L %in% all$vintage)
+  expect_true(all(c(1976L, 1981L) %in% all$vintage))
 
   expect_identical(nrow(canstreet_domains(2006)), 0L)
   expect_setequal(unique(canstreet_domains(2016, domain = "class")$domain),

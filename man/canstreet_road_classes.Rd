@@ -13,8 +13,9 @@ in the manifest.}
 \value{
 A \code{\link[tibble:tibble]{tibble::tibble()}} of \code{vintage}, \code{code}, \code{label}, \code{category},
 \code{status} and \code{road}. \code{label} is the value the class column is stored as,
-and is the code itself for the Area Master Files, whose vocabulary
-Statistics Canada never published.
+which is the code itself wherever no guide defines it -- the Area Master
+Files' \code{OB} and \code{Z}, and any code a vintage carries that its own guide
+omits.
 }
 \description{
 The \code{class} column says what kind of feature an arc is, and the vocabulary is

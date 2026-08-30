@@ -214,6 +214,24 @@ or 1986 could be located in any accessible repository. The package's source
 manifest is a plain data table, so further years and provinces can be added
 without code changes.
 
+The naming is Statistics Canada's own, and it is not consistent between editions
+of the dictionary. The [2001
+entry](https://www12-2021.statcan.gc.ca/english/census01/products/reference/dict/geo041.htm)
+applies the later name to the whole back series -- "1996, 1991, 1986, 1981,
+1976, 1971 (Street Network Files -- cover large urban centres only)" -- and then
+dates the change in one line at the foot of the entry: "Prior to 1996, Street
+Network Files were called Area Master Files (AMFs)." The 1996 Abacus deposit
+says the same from the other side, describing the street network files as
+"formerly known as the Area Master Files (AMFs)" and "first created in the early
+1970s". Two names, one product, renamed at 1996 -- the change of name by itself
+marks nothing about the files. By 1991 the older acronym had in any case become
+the name of a *format*: that deposit is titled a Street Network File and ships
+two user guides, one for the "ARC/INFO export format" and one for the "AMF
+format". The `product` column here splits on the file rather than on the
+dictionary -- `AMF` for the two mainframe flat-file vintages, `SNF` for the two
+ArcInfo coverage vintages. That puts 1991 with the street network files, where
+the 2006 and 2011 dictionaries put it with the area master files.
+
 The area master files are not a GIS format and no GDAL driver reads them: they
 are mainframe flat files, one fixed-width record per line, describing each
 street as a chain of nodes in NAD27 UTM. `read_amf()` parses either release --
@@ -225,16 +243,35 @@ suggests: 89-92% of their road length has a 1991 Street Network File arc within
 20 m of its midpoint, and 95-96% within 40 m. Calibrated against 2021 over the
 Vancouver CMA, the median positional disagreement on same-name roads is 11.5 m
 for 1976 and 11.0 m for 1981 -- lower than the 15.7 m of the 1991 and 1996
-shapefiles.
+street network files.
 
-Two caveats from that page carry straight into any analysis of change over time.
-Statistics Canada states that **"topological accuracy takes precedence over
-absolute positional accuracy"**: the files are built for census enumeration, so
+The 2001 entry also says where the modern geometry came from, and it is a break
+rather than a continuation. The road network files "are derived from the
+National Geographic Base (NGB)", and "much of the road network in the NGB was
+realigned to match Natural Resources Canada's National Topographic Database" --
+so 2001 is not the 1996 street network file extended over the rest of the
+country, it is a different base, moved. Statistics Canada records the result as
+"the improved geometry of RNFs, compared to SNFs", and the shift is legible in
+the files: in Vancouver every pre-2001 vintage puts 15th Avenue some 40 m north
+of where 2001 and everything after it put the same street, further than the
+matching tolerance those years calibrate to. It is why the matcher carries a
+second rule keyed on street names rather than on distance alone, and a second
+reason to distrust `first_year == 2001` -- national coverage begins in that
+year, and so does a different geometry.
+
+Two caveats from those entries carry straight into any analysis of change over
+time. Statistics Canada states that **"topological accuracy takes precedence
+over absolute positional accuracy"**: the files are built for census enumeration, so
 the relative position of features is maintained and their absolute position is
 not. That is why matching across years has to be tolerant rather than exact, and
 why the tolerance is measured per vintage pair rather than assumed. And the
 files are **not routable** -- there is no one-way, turn-restriction or
 dead-end information, and address ranges may be imputed rather than observed.
+Address ranges are also thin outside the cities even in the national era.
+Statistics Canada says they are "generally available only in the large urban
+centres of Canada", and the files bear it out: 74% of 2011 arcs inside a census
+metropolitan area or agglomeration carry one against 43% outside (2016: 71% and
+49%), and roughly three quarters of the country's road length is outside one.
 
 One thing the dictionary does not say, established here by reading the files:
 the early vintages carry more than roads. The area master files and the 1991
@@ -295,9 +332,13 @@ you need to go back from a label to a code, and `canstreet_road_classes()` says
 which of the values in them are road. The vocabularies are read from
 primary sources: the reference guide shipped inside each Road Network File
 archive, the Street Network File User Guide from the Abacus deposit, and the
-2021 Census attribute domain values page. Where no vocabulary was ever
-published -- 2005 to 2010, and the two area master files -- the codes are kept
-as they are.
+2021 Census attribute domain values page. The two area master files get theirs
+from that same guide's AMF-format variant, whose feature classification is a
+(feature type, sub-type, street type) triple of which the area master file
+stores the first two -- so `HN` is a highway, `MB` a political boundary, `SN` a
+shoreline. Where no vocabulary was ever published -- 2005 to 2010, and the two
+area master file codes the guide does not account for -- the codes are kept as
+they are.
 
 ## Attribution
 

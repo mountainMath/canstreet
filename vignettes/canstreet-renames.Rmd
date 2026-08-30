@@ -149,9 +149,9 @@ bind_rows(
 #> # A tibble: 3 × 3
 #>   step                          segments    km
 #>   <chr>                            <int> <dbl>
-#> 1 written differently              16096 1803 
-#> 2 ... and differ after folding      3239  274.
-#> 3 ... and neither side is blank     2930  251
+#> 1 written differently              16099 1803.
+#> 2 ... and differ after folding      3243  275.
+#> 3 ... and neither side is blank     2934  251.
 ```
 
 Most of the raw churn is case, accents and the numbered street the files respell
@@ -194,8 +194,8 @@ bind_rows(with_type(1991, "GRANDVIEW HIGHWAY"), with_type(1996, "GRANDVIEW"),
 #> 2    1996 GRANDVIEW         HY       48
 #> 3    1981 EAST BOULEVARD    CR       35
 #> 4    1991 EAST              RD       16
-#> 5    1991 EAST              CT        2
-#> 6    1991 EAST              BV       35
+#> 5    1991 EAST              BV       35
+#> 6    1991 EAST              CT        2
 ```
 
 1991 writes Grandview Highway's type twice, once spelled out in `name` and once
@@ -265,8 +265,8 @@ changes |>
 #> # A tibble: 4 × 3
 #>   kind                segments    km
 #>   <chr>                  <int> <dbl>
-#> 1 loosely matched         1795 143. 
-#> 2 candidate rename         698  64.2
+#> 1 loosely matched         1800 143. 
+#> 2 candidate rename         697  64  
 #> 3 street type moved        288  30.1
 #> 4 spelling convention      149  13.8
 ```
@@ -325,7 +325,7 @@ tibble::tibble(pairs = nrow(renames), km = round(sum(renames$km), 1))
 #> # A tibble: 1 × 2
 #>   pairs    km
 #>   <int> <dbl>
-#> 1   183  44.7
+#> 1   182  44.6
 
 renames |> head(20)
 #> # A tibble: 20 × 4

@@ -11,6 +11,9 @@
 # Where each domain comes from, all of them primary sources rather than
 # secondary documentation:
 #
+#   1976, 1981  The feature-type and sub-type columns of the same List A, in
+#               the Area Master File variant of that guide (`snfamf.pdf`, also
+#               in the 1991 deposit) -- see `cs_domain_amf_class()`.
 #   1991, 1996  "List A: Feature Classification" in the Street Network File User
 #               Guide (`snfarc.pdf`), which the Abacus deposit ships alongside
 #               the shapefiles.
@@ -24,9 +27,94 @@
 #               domain-domaine/index2021-eng.cfm?lang=e&id=CLASS (and `=RANK`).
 #
 # 2005 through 2010 get no domain: the 2006 reference guide documents no CLASS
-# or RANK table, and the 2006 file carries neither column. The Area Master
-# Files get none either -- see `cs_categories_amf()` for why the 1991 guide's
-# List A cannot simply be reused for them.
+# or RANK table, and the 2006 file carries neither column.
+
+# Sources for the labels below, kept out of the roxygen block on purpose: these
+# are live URLs, and a dead link in an installed manual page is a CRAN problem
+# waiting to happen.
+#
+#   The guide itself -- Street Network File User Guide (AMF Format), Geography
+#   Division, Statistics Canada, June 1992. List A is on its page 44. It is
+#   `snfamf.pdf` in the 1991 Abacus deposit, file id 67973:
+#     https://abacus.library.ubc.ca/api/access/datafile/67973
+#     https://abacus.library.ubc.ca/dataset.xhtml?persistentId=hdl:11272.1/AB2/2FCGQJ
+#
+#   The two deposits the labels are applied to, neither of which ships any
+#   documentation of its own -- flat files only:
+#     1976  https://abacus.library.ubc.ca/dataset.xhtml?persistentId=hdl:11272.1/AB2/MESORS
+#     1981  https://abacus.library.ubc.ca/dataset.xhtml?persistentId=hdl:11272.1/AB2/K0EZ55
+#
+#   Searched and empty, so that nobody repeats it: an Abacus search for "Area
+#   Master File" returns five datasets and no data dictionary; publications.gc.ca,
+#   archive.org, Library and Archives Canada, HathiTrust and the university data
+#   libraries hold no 1976 or 1981 AMF guide in either official language.
+
+#' The 1976 and 1981 Area Master File feature classification
+#'
+#' No user guide for the 1976 or 1981 Area Master File survives in any archive
+#' searched -- the two Abacus deposits ship the flat files and nothing else, and
+#' neither Statistics Canada nor Library and Archives Canada nor any data
+#' library holds a scanned one. What does survive is the *format* guide for the
+#' product that replaced it: the Street Network File User Guide (AMF Format),
+#' Geography Division, June 1992, shipped as `snfamf.pdf` in the 1991 Abacus
+#' deposit. Its List A is the key, because it classifies a feature by three
+#' parts rather than one:
+#'
+#'   feature type (1 char) + sub-feature type (1 char) + street type (2 chars)
+#'
+#' and the Area Master File stores exactly the first two of those in its
+#' two-character class field, the third being an ordinary List B street type in
+#' the `type` column (`HN` carries `HY`, `WY`, `RD`; a modern List A `HN` would
+#' carry `SI` or `MU`). So an Area Master File class names a *family*, and the
+#' label here is that family's interpretation, taken from the List A row whose
+#' street type is blank.
+#'
+#' Every one is corroborated against the arcs it labels: `HN` is the
+#' Trans-Canada, Highway 401 and the Upper Levels; `BN` is the Lions Gate,
+#' Second Narrows and Pattullo bridges; `MB` is "SURREY LIMIT" and "KAMLOOPS
+#' LIMIT"; `GB` is the airport, the UBC campus and the park limits; `UB` is
+#' literally "URBAN RURAL BOUNDARY".
+#'
+#' Two observed codes are deliberately left out, so they stay bare in the data:
+#'
+#' - `OB` (99 arcs) is not a List A combination at all. The sub-type letter
+#'   reads as the geometric role -- `N` a linear feature, `B` a boundary, `P` a
+#'   point -- and List A pairs the `O` topography family with `N` only. The arcs
+#'   are "OAKALLA PRISON BDRY" and "GVRD WATERSHED BOUNDARY", so "other
+#'   boundary" is the obvious reading, but it is a reading and not a source.
+#' - `Z` (189 arcs, 1976 only) is where List A and the data flatly disagree.
+#'   The guide gives the `Z` family as hydroline, telephone line, fence and
+#'   pipeline; the arcs are Kingsway, Lougheed Highway and Grandview Highway,
+#'   63% of them addressed. `cs_categories_amf()` follows the data and calls
+#'   them road, and no label is asserted over the top of that.
+#'
+#' A blank class needs no entry: it is stored as `NULL`, and List A gives it its
+#' own row -- "Addressable Single street & public access lane" -- which is why
+#' the ordinary street is the unclassed value here exactly as it is in the
+#' Street Network File.
+#'
+#' `PP` is carried though neither vintage uses it, because the declared type is
+#' the whole vocabulary rather than the codes observed.
+#'
+#' @return A tibble of `code` and `label`.
+#' @keywords internal
+#' @noRd
+cs_domain_amf_class <- function() {
+  tibble::tribble(
+    ~code, ~label,
+    "HN",  "Highway",
+    "BN",  "Bridge or tunnel",
+    "RN",  "Railway",
+    "WN",  "Water body defined using streamline",
+    "SN",  "Water body defined using shoreline",
+    "IN",  "Associated hydrographic feature",
+    "MB",  "Political boundary",
+    "CB",  "Geostatistical area boundary",
+    "GB",  "Property boundary",
+    "UB",  "Urban-rural boundary",
+    "PP",  "Point feature"
+  )
+}
 
 #' The 1991 and 1996 Street Network File feature classification
 #'
@@ -271,15 +359,16 @@ cs_class_domain <- function(vintage) {
   src <- cs_source(vintage)
   if (!nrow(src)) return(NULL)
   vintage <- as.integer(vintage)
-  d <- if (identical(src$product[1], "SNF")) {
+  d <- if (identical(src$product[1], "AMF")) {
+    cs_domain_amf_class()
+  } else if (identical(src$product[1], "SNF")) {
     cs_domain_snf_class()
   } else if (vintage == 2001L) {
     cs_domain_rnf_2001_class()
   } else if (identical(src$product[1], "RNF") && vintage >= 2011L) {
     cs_domain_rnf_class(vintage)
   } else {
-    # 2005-2010 document no class table and 2006 ships no class column; the
-    # Area Master Files pre-date any published list.
+    # 2005-2010 document no class table and 2006 ships no class column.
     NULL
   }
   if (is.null(d)) NULL else cs_domain_disambiguate(d)
@@ -404,14 +493,15 @@ cs_label_vintage <- function(con, table, vintage) {
 #' [get_road_network()] and its `roads_only` argument.
 #'
 #' Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
-#' reference guides document no class or rank table, and the 1976 and 1981 Area
-#' Master Files, which pre-date any published list. Those vintages keep the codes
-#' the source files carry.
+#' reference guides document no class or rank table. Those vintages keep the
+#' codes the source files carry, as does any individual code its vintage's guide
+#' omits -- the 1976 and 1981 `OB` and `Z`, for instance.
 #'
 #' Sources, all primary: the Street Network File User Guide "List A" for 1991 and
-#' 1996; the reference guide shipped inside each Road Network File archive for
-#' 2001, 2011 and 2016; and the 2021 Census attribute domain values page for
-#' 2021. Where a vintage gives two codes the same description -- 2016's `90` and
+#' 1996, and the feature-type and sub-type columns of the same list, in that
+#' guide's Area Master File variant, for 1976 and 1981; the reference guide
+#' shipped inside each Road Network File archive for 2001, 2011 and 2016; and
+#' the 2021 Census attribute domain values page for 2021. Where a vintage gives two codes the same description -- 2016's `90` and
 #' `95` are both "Unknown" -- each keeps the published wording with its own code
 #' appended, because a DuckDB `ENUM` cannot hold the same value twice.
 #'

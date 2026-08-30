@@ -34,14 +34,15 @@ values count as road is \code{\link[=canstreet_road_classes]{canstreet_road_clas
 \code{\link[=get_road_network]{get_road_network()}} and its \code{roads_only} argument.
 
 Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
-reference guides document no class or rank table, and the 1976 and 1981 Area
-Master Files, which pre-date any published list. Those vintages keep the codes
-the source files carry.
+reference guides document no class or rank table. Those vintages keep the
+codes the source files carry, as does any individual code its vintage's guide
+omits -- the 1976 and 1981 \code{OB} and \code{Z}, for instance.
 
 Sources, all primary: the Street Network File User Guide "List A" for 1991 and
-1996; the reference guide shipped inside each Road Network File archive for
-2001, 2011 and 2016; and the 2021 Census attribute domain values page for
-2021. Where a vintage gives two codes the same description -- 2016's \code{90} and
+1996, and the feature-type and sub-type columns of the same list, in that
+guide's Area Master File variant, for 1976 and 1981; the reference guide
+shipped inside each Road Network File archive for 2001, 2011 and 2016; and
+the 2021 Census attribute domain values page for 2021. Where a vintage gives two codes the same description -- 2016's \code{90} and
 \code{95} are both "Unknown" -- each keeps the published wording with its own code
 appended, because a DuckDB \code{ENUM} cannot hold the same value twice.
 }
