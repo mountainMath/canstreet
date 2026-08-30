@@ -525,6 +525,29 @@ rename product has to classify, not just diff. Note the blind spot: rule B joins
 equality and so **cannot match across a rename by construction**, which means a road that was both
 renamed and coarsely digitized reads as a retirement plus a new road, not a rename.
 
+`vignettes.orig/canstreet-renames.Rmd` is the classification worked end to end, scoped to the
+**City of Vancouver CSD** (built over the CMA for the halo, read over the city polygon — an attribute
+filter would drop the pre-2011 vintages, which carry no region columns). Its funnel is the measured
+shape of the problem: 16,096 raw name changes -> 3,239 after the matcher's own fold (case, accents,
+the numeric ordinal) -> 2,930 with both sides named -> *loosely matched* 1,795 segments / 143 km
+(either side matched at 10 m or more), *street type moved between fields* 288 / 30.1 km, *spelling
+convention* 149 / 13.8 km, leaving 698 / 64.2 km of candidate rename. Of that, 80 of 265 name pairs
+reverse — 1996 alone using `NORTH KENT`/`SOUTH KENT` where its neighbours write `KENT`, and the files
+disagreeing where one named structure ends (`ANDERSON` <-> `GRANVILLE`) — leaving 183 pairs / 44.7 km
+that read as real, headed by Kent Avenue splitting into `E KENT`/`W KENT` in 2016 (105 segments in one
+window), `CONNAUGHT BRIDGE` -> `CAMBIE BRIDGE`, and the Stanley Park and Coal Harbour roads. Over the
+whole CMA the same pipeline runs 88,100 -> 30,183 -> 1,543 pairs / 448 km, whose largest single event
+is Highway 17 moving to the South Fraser Perimeter Road between 2011 and 2016. Two things in that
+pipeline are load-bearing rather than cosmetic: the fold
+is computed in DuckDB with `strip_accents` and the same `regexp_replace` the matcher uses, because R's
+`iconv(to = "ASCII//TRANSLIT")` writes `QUÉBEC` as `QU'EBEC` and would manufacture differences; and
+the "street type moved" class is *proven* by joining the crosswalk back to the vintage table on
+`(source_file, source_id)` — 1981 files `LOUGHEED HIGHWAY` with `type` empty, 2001 files `Lougheed`
+with `type = HWY`, and 1991 files `GRANDVIEW HIGHWAY` with `type = HY` where 1996 files `GRANDVIEW`
+with the same `HY` — which is exactly the join the schema-2 crosswalk columns exist to make possible.
+There is no `temporal_network_renames()` accessor: the classification is judgement about a particular
+region's naming conventions, not something the package should assert.
+
 **Calibration keys on `name_disagree`, not on coverage.** The coverage-versus-tolerance curve is
 smooth and has no knee, so it cannot choose a tolerance. `name_disagree` — the share of arcs whose
 *nearest* arc within *d* carries a different name — stays flat while the tolerance absorbs positional

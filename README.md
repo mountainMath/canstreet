@@ -166,6 +166,13 @@ through end to end, and `vignette("canstreet-vancouver")` builds the full
 nine-vintage series over the Vancouver CMA -- 1976 to 2021, four file formats --
 to show what a segment's first year does and does not mean.
 
+The crosswalk records the name each year's own file gave a segment, so street
+renaming is readable from a finished build. Most of the churn is spelling rather
+than naming, and `vignette("canstreet-renames")` peels those layers off over the
+City of Vancouver until what is left is renaming -- 45 km of it over forty-five
+years, among it Kent Avenue splitting into East and West between the 2011 and
+2016 files.
+
 `within = NULL` builds the whole country, but region-scoped builds are the
 supported scale for now: a national two-vintage build spilled over 32 GB of
 temporary storage in the coverage pass on the machine this was developed on,
