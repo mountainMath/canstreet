@@ -21,7 +21,7 @@ MapInfo interchange pair, and Road Network File shapefiles --- which the package
 makes irrelevant to the caller.
 
 
-```{r library}
+```{r library, message = FALSE}
 library(canstreet)
 library(dplyr)
 library(ggplot2)

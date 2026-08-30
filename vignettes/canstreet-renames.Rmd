@@ -22,14 +22,6 @@ layers off in order, over one city, until what is left is worth reading.
 ``` r
 library(canstreet)
 library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
 library(ggplot2)
 ```
 
@@ -182,6 +174,7 @@ with_type <- function(year, nm) {
                by = c("source_file", "source_id")) |>
     filter(src_name == nm) |>
     count(vintage, src_name, type) |>
+    arrange(desc(n)) |>
     collect()
 }
 
@@ -193,8 +186,8 @@ bind_rows(with_type(1991, "GRANDVIEW HIGHWAY"), with_type(1996, "GRANDVIEW"),
 #> 1    1991 GRANDVIEW HIGHWAY HY       37
 #> 2    1996 GRANDVIEW         HY       48
 #> 3    1981 EAST BOULEVARD    CR       35
-#> 4    1991 EAST              RD       16
-#> 5    1991 EAST              BV       35
+#> 4    1991 EAST              BV       35
+#> 5    1991 EAST              RD       16
 #> 6    1991 EAST              CT        2
 ```
 

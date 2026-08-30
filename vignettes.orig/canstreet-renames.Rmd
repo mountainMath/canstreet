@@ -20,7 +20,7 @@ renamings --- but most of what the diff returns is not a road changing its name,
 it is Statistics Canada changing how it writes one. This vignette peels those
 layers off in order, over one city, until what is left is worth reading.
 
-```{r library}
+```{r library, message = FALSE}
 library(canstreet)
 library(dplyr)
 library(ggplot2)
@@ -152,6 +152,7 @@ with_type <- function(year, nm) {
                by = c("source_file", "source_id")) |>
     filter(src_name == nm) |>
     count(vintage, src_name, type) |>
+    arrange(desc(n)) |>
     collect()
 }
 

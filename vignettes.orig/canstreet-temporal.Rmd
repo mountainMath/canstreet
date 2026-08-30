@@ -21,7 +21,7 @@ each segment carries the years it is present in.
 
 This vignette is precomputed, but the code is what you would run.
 
-```{r library}
+```{r library, message = FALSE}
 library(canstreet)
 library(dplyr)
 library(ggplot2)
