@@ -23,6 +23,20 @@
 #   * The match predicate is a tight distance test gated on a *local* bearing,
 #     plus a narrow same-name rescue at longer range for the generalized arcs.
 #
+# Arc-to-arc matching was measured before any of this was written, and does
+# not work: requiring both endpoints and the midpoint of a 2006 Calgary arc to
+# lie within 20 m of one 2021 arc matches 35% of them.
+#
+# What there is to build the alternative out of is narrower than PostGIS. The
+# DuckDB spatial extension (1.5.4) has no `ST_Hausdorff`, `ST_FrechetDistance`,
+# `ST_MaxDistance`, `ST_Split`, `ST_Snap`, `ST_Segmentize` or `ST_Relate`, so
+# every geometric comparison here is assembled from `ST_LineLocatePoint`,
+# `ST_LineSubstring`, `ST_LineInterpolatePoint` and `ST_Azimuth` -- check
+# before reaching for a PostGIS function from memory. And DuckDB plans a
+# cross-vintage `ST_DWithin` as a spatial join over a sequential scan,
+# ignoring the persistent RTREE, which is why the expensive passes here are
+# blocked on a grid instead of left to the index.
+#
 # One predicate serves both the residual test that builds the spine and the
 # coverage test that tags the result. That is what makes `last_year` equal
 # `spine_vintage` for every emitted row: a piece enters the spine from vintage
@@ -721,6 +735,16 @@ cs_build_spine <- function(con, out, staged, specs, bearing_tol,
 #' segment boundary is a place where *some* vintage changed, and the year set
 #' is constant along each emitted segment by construction.
 #'
+#' This is the pass that does not scale nationally. With no region, the
+#' coverage test spilled 18.6 GiB and then 31.8 GiB of DuckDB temporary storage
+#' during development and exhausted the disk -- at `threads = 4` and with
+#' `preserve_insertion_order = false` alike. The shape of a fix is the trick
+#' `cs_build_rescue_index()` already applies to the name rescue: block rule A's
+#' `ST_DWithin` on a grid as well. But the cell would have to be near the
+#' tolerance rather than 5 km, since a 5 km cell in downtown Toronto holds tens
+#' of thousands of arcs and a hash join on it would be worse than the spatial
+#' join it replaced. Measure before committing to it.
+#'
 #' @param con A writable DuckDB connection.
 #' @param spine Table from `cs_build_spine()`.
 #' @param staged Named list of staged table pairs.
@@ -1096,6 +1120,8 @@ cs_build_tnet <- function(con, name, vintages, within = NULL,
     bearing_tol = as.character(bearing_tol),
     name_far_m = as.character(name_far_m),
     min_segment_m = as.character(min_segment_m),
+    # `roads_only` may be a vector of build statuses; `canstreet_builds` is an
+    # EAV table holding one string per key, so it is joined rather than kept.
     roads_only = paste(as.character(roads_only), collapse = ","),
     n_dropped_superseded = as.character(emitted$n_dropped),
     m_dropped_superseded = as.character(round(emitted$m_dropped, 1)),

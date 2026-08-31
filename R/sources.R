@@ -33,9 +33,26 @@ cs_statcan_url <- function(vintage) {
     # and DuckDB scans it whole in about half a minute -- where the coverage
     # reads at a few hundred arcs a second, which is over two hours.
     #
+    # None of the extra columns are mapped, and they need not be: `arc_group`
+    # (`AD` road / `BO` boundary / `SB` sub-block) separates the topology that
+    # `class` conflates, but filtering on `class` gives exactly the same length
+    # on both tables. It is the cleaner predicate if that ever changes. The
+    # address columns are spelled in full here -- `addr_fm_left`, and note
+    # `addr_fm_rght`, not `_right` -- because a MapInfo column name is not
+    # clipped to ten characters the way a `.dbf` field is; the identifier is
+    # `arc_id`, unique across all 2,053,112 rows, and `rank1`-`rank4` are the
+    # four skeletal levels of detail rather than a `rank`, so `rank` stays
+    # NULL for 2001.
+    #
     # `lrnf000r01a_e`, `grnf000r01g_e` and `grnf000r01a_f` all return the
     # soft-404 signature. The same is true of the equivalent 1991 and 1996
     # paths -- those stay on Abacus.
+    #
+    # The download page (`index-2011-eng.cfm?year=01`) is a POST form, so none
+    # of these URLs appear in its HTML. To re-derive them, POST
+    # `lang=_e&type=<rnf000r01a|rnf000r01m|srn000r01a|srn000r01m>&year=11`
+    # `&getgeo=Continue` and read the redirect. The `srn` pair is the Skeletal
+    # Road Network File -- a four-level generalization, not the full network.
     paste0(statcan_census_base, "2011/geo/rnf-frr/files-fichiers/",
            "grnf000r01m_e.zip")
   } else if (vintage == 2021) {

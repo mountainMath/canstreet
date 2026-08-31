@@ -26,6 +26,14 @@
 #   2021        https://www12.statcan.gc.ca/census-recensement/2021/geo/ref/
 #               domain-domaine/index2021-eng.cfm?lang=e&id=CLASS (and `=RANK`).
 #
+# Every guide but 2021's ships *inside* the archive the vintage arrives in:
+# `92-500-G<year>001-eng.pdf` in each Road Network File zip,
+# `92f0157g2001000-eng.pdf` in 2001's, and `snfarc.pdf` and `snfamf.pdf` in the
+# 1991 Abacus deposit. Extract it from the cached zip and read it with
+# `pdftotext -layout` rather than searching the web -- the attribute-domain
+# pages on the Statistics Canada site cover 2021 only, and the 2011 and 2016
+# spellings of that URL return the soft 404.
+#
 # 2005 through 2010 get no domain: the 2006 reference guide documents no CLASS
 # or RANK table, and the 2006 file carries neither column.
 
