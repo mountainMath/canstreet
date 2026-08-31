@@ -340,6 +340,48 @@ shoreline. Where no vocabulary was ever published -- 2005 to 2010, and the two
 area master file codes the guide does not account for -- the codes are kept as
 they are.
 
+### Why CanVec is not a fourth source
+
+Natural Resources Canada's [Topographic Data of Canada -- CanVec
+Series](https://open.canada.ca/data/en/dataset/8ba2aa2a-7bb9-4448-b4d7-f164409fe056)
+advertises a temporal coverage of 1944 to 2019, which makes it look like the one
+national source reaching back further than these files do. It is not. CanVec is
+a current-state topographic snapshot rather than a series -- its update
+frequency is "Not Planned" and its distribution has been frozen since 2019 --
+and the 1944 is a per-feature acquisition date, `datemin`/`datemax`, recording
+the compilation of the National Topographic System sheet the feature was
+digitized off. Sheets nobody had reason to revisit still carry their original
+date.
+
+Roads are not among them. In the 50K Transport tiles the road segments are
+recent everywhere: Prince Edward Island's 18,509 arcs span 2005 to 2019 with
+14,614 of them at 2010, and the Northwest Territories' 6,918 span 1999 to 2017
+with 6,159 at 2010. Every one carries a populated `geobase_id`, because the road
+content is Natural Resources Canada's National Road Network dropped in around
+2010. The old dates sit on what was left alone: Northwest Territories `trail_1`
+reaches back to 1946, with its own mode at 1970. Those dates are the lead worth
+following if pre-1976 street geometry is ever wanted -- but the lead is the
+topographic sheets themselves, not CanVec.
+
+An old date would in any case date a compilation rather than a network. A
+current-state product records no removals, so a street that existed in 1985 and
+was gone by 1995 leaves nothing behind in it, which is the one thing a series of
+snapshots gives and a snapshot cannot. The distribution FTP does keep two
+earlier editions alongside the current one (`archive/canvec_archive_20130515/`
+and `archive/canvec+_archive_20151029/`), making CanVec a three-point series --
+but a series of the National Road Network of 2013, 2015 and 2019, inside the
+years the Road Network Files already cover and thinner than they are.
+
+What CanVec holds that these files do not is that National Road Network
+attribution, which is markedly fuller than Statistics Canada's: 83% of those
+Prince Edward Island road segments carry a left-side civic address range and 97%
+an official street name already parsed into article, body, type and direction on
+each side, against the 43-74% address coverage reported above -- on a province
+that is mostly rural, where these files are at their thinnest. It is
+distributed under the Open Government Licence -- Canada, so unlike the DMTI
+Spatial collection on Abacus it is free to use. That makes it a way to check the
+modern end of this series from outside it, not a vintage to add to it.
+
 ## Attribution
 
 Source data are &copy; Statistics Canada, distributed under the
