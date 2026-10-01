@@ -10,3 +10,6 @@ inst/doc
 # it up as a page alongside README.md.
 .claude/*
 !.claude/CLAUDE.md
+
+# The hosted Area Master File archives, built by data-raw/amf_archives.R.
+data-raw/amf_archives/

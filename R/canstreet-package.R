@@ -8,12 +8,15 @@
 #'
 #' @section Data source and attribution:
 #' The data are the Statistics Canada Road Network File (catalogue 92-500-X)
-#' and its Street Network File predecessors, distributed under the Statistics
-#' Canada Open Licence (<https://www.statcan.gc.ca/en/reference/licence>).
-#' Vintages before 2005 are retrieved from the Abacus Data Network at the
-#' University of British Columbia, which mirrors the Statistics Canada
-#' releases. The licence asks that you cite the product and reference year, for
-#' example: "Adapted from Statistics Canada, Road Network File, 2021. This does
-#' not constitute an endorsement by Statistics Canada of this product."
+#' and its Street Network File and Area Master File predecessors, distributed
+#' under the Statistics Canada Open Licence
+#' (<https://www.statcan.gc.ca/en/reference/licence>). The 1991 and 1996
+#' vintages are retrieved from the Abacus Data Network at the University of
+#' British Columbia, which mirrors the Statistics Canada releases, and the
+#' 1971 to 1986 Area Master Files, which Statistics Canada does not serve
+#' online, from MountainMath's own storage. The licence asks that you cite
+#' the product and reference year, for example: "Adapted from Statistics
+#' Canada, Road Network File, 2021. This does not constitute an endorsement by
+#' Statistics Canada of this product."
 #' @name canstreet-package
 NULL

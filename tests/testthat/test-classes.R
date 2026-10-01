@@ -17,12 +17,13 @@ test_that("every published class code is categorized exactly once", {
                         "unknown")),
                 info = as.character(v))
     # Every published code has to be categorized. The reverse holds too, except
-    # for the Area Master Files, which carry two codes List A does not account
-    # for -- those are categorized from the arcs and stay unlabelled.
+    # for the 1971 to 1981 Area Master Files, which carry two codes List A does
+    # not account for -- those are categorized from the arcs and stay
+    # unlabelled.
     if (!is.null(dom)) {
       expect_true(all(dom$code %in% cats$code), info = as.character(v))
       extra <- setdiff(cats$code, dom$code)
-      if (identical(cs_source(v)$product[1], "AMF")) {
+      if (v < 1986L) {
         expect_setequal(extra, c("OB", "Z"))
       } else {
         expect_length(extra, 0L)
@@ -59,8 +60,10 @@ test_that("a road that was not built yet is a road with a status", {
   expect_identical(planned(2021), "28")           # Planned
   expect_identical(planned(1996), c("HPR", "HUC"))  # proposed, under construction
   expect_true(all(c("202", "1015") %in% planned(2001)))
-  # The Area Master Files have no word for it.
+  # The early Area Master Files have no word for it; 1986 has the Street
+  # Network File's two, under its own four-character codes.
   expect_length(planned(1976), 0L)
+  expect_identical(planned(1986), c("HNPR", "HNUC"))
 
   r <- canstreet_road_classes(2021)
   expect_identical(r$status[r$code == "28"], "planned")
@@ -110,6 +113,18 @@ test_that("each vintage is restricted to its own idea of a road", {
                          logical(1))))
   expect_false(grepl("'Railway'", amf))  # railways are not among them
   expect_identical(cs_road_class_sql(1981), amf)
+  expect_identical(cs_road_class_sql(1971), amf)
+
+  # 1986 is classed the way the Street Network File is, and names its roads
+  # with that file's words.
+  amf86 <- cs_road_class_sql(1986)
+  expect_match(amf86, "class IS NULL OR class IN")
+  expect_true(all(vapply(c("Highway multiple", "Ramp", "Other Highway"),
+                         function(k) grepl(paste0("'", k, "'"), amf86,
+                                           fixed = TRUE),
+                         logical(1))))
+  expect_false(grepl("'Highway proposed'", amf86, fixed = TRUE))
+  expect_false(grepl("'Trail'", amf86, fixed = TRUE))
 
   # The column is nameable, so the predicate can be applied to an alias.
   expect_match(cs_road_class_sql(2001, "o.class"), "o.class NOT IN")
@@ -167,6 +182,20 @@ test_that("canstreet_road_classes reports what each vintage keeps", {
   expect_identical(amf$label[amf$code == "HN"], "Highway")
   expect_setequal(amf$label[amf$code %in% c("OB", "Z")], c("OB", "Z"))
   expect_identical(sort(amf$code[amf$road]), c("BN", "HN", "Z"))
+  # `OB` is whatever had no class of its own -- a watershed, a prison fence, a
+  # pipeline -- and is neither a road nor any one other thing.
+  expect_identical(amf$category[amf$code == "OB"], "other")
+
+  # 1986 completes each family with the qualifier the street-type field
+  # carries, and takes the Street Network File's label for the result.
+  a86 <- canstreet_road_classes(1986)
+  expect_identical(a86$label[a86$code == "HNMU"], "Highway multiple")
+  expect_identical(a86$label[a86$code == "HNMU"],
+                   cs_class_label(1991, "HMU"))
+  expect_true(a86$road[a86$code == "E"])
+  expect_identical(a86$status[a86$code == "HNPR"], "planned")
+  expect_identical(a86$category[a86$code == "FNTR"], "path")
+  expect_false(any(a86$road & a86$category != "road"))
 
   # A vintage with no class column contributes nothing, and an all-empty
   # request still returns the right shape.

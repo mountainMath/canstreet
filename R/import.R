@@ -140,7 +140,7 @@ cs_harmonize_sql <- function(con, path, src, table) {
     "WHERE st_geometrytype(geom) IN ('LINESTRING', 'MULTILINESTRING');")
 }
 
-#' Build the INSERT that harmonizes one map sheet's AMF segments
+#' Build the INSERT that harmonizes one Area Master File's segments
 #'
 #' The Area Master Files never pass through `ST_Read`: they are parsed in R and
 #' staged as a registered data frame carrying a WKT column, so this is the
@@ -151,6 +151,17 @@ cs_harmonize_sql <- function(con, path, src, table) {
 #' One statement per UTM zone, because a zone is a different CRS and
 #' `ST_SetCRS` needs a constant -- the same reason `cs_to_storage_sql()` builds
 #' its SQL in R.
+#'
+#' The class is where the file's two fields become the vocabulary's one. List A
+#' names a class by feature type, sub-type *and* a qualifier that sits in the
+#' street-type field -- `HN` with `MU` is "Highway multiple" -- so wherever the
+#' two together are a code of the vintage's domain they are stored together and
+#' the street type is cleared, because `MU` was never one. Everywhere else the
+#' class stands alone and the type is the street's own: `E` with `BV` is an
+#' addressable multiple street that is a boulevard. Which pairs qualify is read
+#' from the domain rather than from the year, so the 1971 to 1981 files, whose
+#' domain has no qualified code, come through untouched -- their `HN` with `PY`
+#' is a highway that is a parkway.
 #'
 #' @param con A DuckDB connection.
 #' @param stage Name of the registered staging relation.
@@ -163,15 +174,27 @@ cs_harmonize_sql <- function(con, path, src, table) {
 #' @noRd
 cs_amf_harmonize_sql <- function(con, stage, src, table, path, epsg) {
   # The AMF has no segment identifier of its own, no rank, and no census
-  # geography beyond the area the record sits in. Its area code is a 1976-era
-  # subdivision code rather than a modern `CSDUID`, so only the name it comes
-  # with is carried across; the province is the one region code that has not
-  # moved, and these files are British Columbia alone.
+  # geography beyond the area the record sits in. Its area code is a
+  # subdivision code of its own census rather than a modern `CSDUID`, so only
+  # the name it comes with is carried across; the province is the one region
+  # code that has not moved, and it is the first two digits of the file's
+  # metropolitan area code.
   mapped <- c(source_id = "source_id", name = "name", type = "type",
               dir = "dir", af_l = "af_l", at_l = "at_l", af_r = "af_r",
               at_r = "at_r", class = "class",
               csdname_l = "area_name", csdname_r = "area_name",
-              pruid_l = "'59'", pruid_r = "'59'")
+              pruid_l = "substr(cma, 1, 2)", pruid_r = "substr(cma, 1, 2)")
+  # The class field holds two characters, so a longer code in the domain is a
+  # class together with its qualifier.
+  codes <- cs_class_domain(src$vintage)$code
+  qualified <- codes[nchar(codes) > 2L]
+  if (length(qualified)) {
+    pair <- paste0("(class || type) IN (",
+                   paste0("'", qualified, "'", collapse = ", "), ")")
+    mapped[["class"]] <- paste0("CASE WHEN ", pair,
+                                " THEN class || type ELSE class END")
+    mapped[["type"]] <- paste0("CASE WHEN ", pair, " THEN NULL ELSE type END")
+  }
   schema <- cs_target_schema()
   exprs <- vapply(seq_len(nrow(schema)), function(i) {
     col <- schema$column[i]
@@ -196,7 +219,8 @@ cs_amf_harmonize_sql <- function(con, stage, src, table, path, epsg) {
 #' Import one Area Master File into a vintage table
 #'
 #' @param con A writable DuckDB connection.
-#' @param path The `.data` file.
+#' @param path One Area Master File, in any of the transcriptions
+#'   `cs_amf_nodes()` reads.
 #' @param src A one-row source manifest entry.
 #' @param table Destination table.
 #' @return The number of segments inserted.
@@ -218,6 +242,23 @@ cs_import_amf_file <- function(con, path, src, table) {
   n
 }
 
+#' The Area Master Files in an extracted archive
+#'
+#' Everything outside the `documentation` directory. The files are named as
+#' Statistics Canada delivered them (`DA.AM76.VANCOUVE.TXT`), which is a
+#' convention of that one delivery and not something to match on.
+#'
+#' @param exdir Directory an archive was extracted into.
+#' @return Paths, in a fixed order.
+#' @keywords internal
+#' @noRd
+cs_resolve_amf_files <- function(exdir) {
+  files <- list.files(exdir, recursive = TRUE, full.names = TRUE)
+  rel <- substring(files, nchar(exdir) + 2L)
+  docs <- grepl("(^|/)documentation/", rel, ignore.case = TRUE)
+  sort(files[!docs])
+}
+
 #' Import one vintage into the database
 #'
 #' @inheritParams canstreet_download
@@ -235,22 +276,44 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
   cs_message(quiet, "Importing vintage ", src$vintage, " (", nrow(archives),
              " archive", if (nrow(archives) == 1L) "" else "s", ") ...")
 
+  # A table replaced from a different source than the one it was imported
+  # from takes the builds made over it along: their crosswalks name arcs that
+  # are about to stop existing. A refresh from the same source leaves them be.
+  recorded <- cs_meta_value(con, src$vintage, "resource")
+  if (!is.na(recorded) && !identical(recorded, src$resource)) {
+    stale <- cs_builds_using(con, src$vintage)
+    cs_builds_drop(con, stale)
+    if (length(stale)) {
+      cs_message(quiet, "Vintage ", src$vintage, " has changed source; ",
+                 "dropped the temporal network build",
+                 if (length(stale) == 1L) " " else "s ",
+                 paste(stale, collapse = ", "), " made from the old one.")
+    }
+  }
+
   DBI::dbExecute(con, cs_create_table_sql(con, table))
 
   for (i in seq_len(nrow(archives))) {
-    if (identical(src$archive, "none")) {
-      # The Area Master Files are bare files, not archives, and no reader in
-      # DuckDB or GDAL opens them; `R/amf.R` parses them into segments here.
-      cs_import_amf_file(con, archives$path[i], src, table)
+    exdir <- cs_extract(archives$path[i])
+    on.exit(unlink(exdir, recursive = TRUE), add = TRUE)
+    if (identical(src$product, "AMF")) {
+      # No reader in DuckDB or GDAL opens an Area Master File; `R/amf.R` parses
+      # each one into segments here. A census is one archive of up to 194 of
+      # them, so this is the loop that reports progress.
+      files <- cs_resolve_amf_files(exdir)
+      for (j in seq_along(files)) {
+        cs_import_amf_file(con, files[j], src, table)
+        if (!quiet && j %% 25L == 0L) {
+          message("  ", j, "/", length(files), " files")
+        }
+      }
     } else {
-      exdir <- cs_extract(archives$path[i])
-      on.exit(unlink(exdir, recursive = TRUE), add = TRUE)
       shps <- cs_resolve_line_source(exdir)
       for (shp in shps) {
         DBI::dbExecute(con, cs_harmonize_sql(con, shp, src, table))
       }
-      unlink(exdir, recursive = TRUE)
     }
+    unlink(exdir, recursive = TRUE)
     if (nrow(archives) > 1L && !quiet && i %% 10L == 0L) {
       message("  ", i, "/", nrow(archives), " archives")
     }
@@ -259,7 +322,8 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
   cs_normalize_address_ranges(con, table)
   # After every archive, never per archive: the ENUM is declared over the
   # values the finished table holds, and a Street Network File vintage
-  # arrives as 51 shapefiles into one table.
+  # arrives as 51 shapefiles into one table and an Area Master File vintage as
+  # up to 194 flat files.
   labelled <- cs_label_vintage(con, table, src$vintage)
 
   n <- DBI::dbGetQuery(con, paste0(
@@ -293,9 +357,9 @@ cs_import_vintage <- function(con, vintage, refresh = FALSE, quiet = FALSE,
     schema_version = as.character(cs_schema_version()),
     crs = cs_storage_crs(),
     source_crs = if (identical(src$product, "AMF")) {
-      # One CRS per map sheet, so the column would be a lie; the datum is what
-      # is constant.
-      paste0("EPSG:", src$crs, " (NAD27, projected per map sheet)")
+      # One UTM zone per file, so a single projected CRS would be a lie; the
+      # datum is what is constant.
+      paste0("EPSG:", src$crs, " (NAD27, in the UTM zone of each file)")
     } else {
       paste0("EPSG:", src$crs)
     },

@@ -256,3 +256,151 @@ test_that("an archive with no readable line layer is an error, not a silence", {
   expect_error(cs_resolve_line_source(dir), "No shapefile, MapInfo file")
 })
 
+
+# The Area Master Files do not go through the alias table: they are parsed in R
+# and arrive as one archive of flat files. These import a vintage from an
+# archive already in the cache, with the two functions that reach the network
+# made to fail.
+local_no_network <- function(env = parent.frame()) {
+  local_mocked_bindings(
+    cs_url_is_available = function(url) stop("should not probe"),
+    cs_download = function(url, destfile, quiet = FALSE, ...)
+      stop("should not download"),
+    .env = env)
+}
+
+test_that("an Area Master File vintage imports from its cached archive", {
+  skip_if_no_duckdb_spatial()
+  skip_if_not_installed("zip")
+  cache <- local_cache()
+  dir <- withr::local_tempdir()
+  zipfile <- write_fixture_amf_zip(cache, 1976, c(
+    write_fixture_amf(dir, "wide", name = "DA.AM76.VANCOUVE.TXT"),
+    write_fixture_amf(dir, "wide", name = "DA.AM76.BURNABY.TXT")))
+  local_no_network()
+
+  x <- dplyr::collect(dplyr::arrange(
+    dplyr::select(get_road_network(1976, quiet = TRUE, cache_path = cache),
+                  -"geom"),
+    .data$source_file, .data$source_id))
+
+  # Both files and nothing from the documentation directory; the archive stays
+  # where the download would have put it.
+  expect_identical(nrow(x), 14L)
+  expect_setequal(x$source_file,
+                  c("DA.AM76.VANCOUVE.TXT", "DA.AM76.BURNABY.TXT"))
+  expect_true(file.exists(zipfile))
+  # Two files of one census repeat every identifier, so the file is part of
+  # the key.
+  expect_identical(anyDuplicated(x$source_id) > 0L, TRUE)
+  expect_identical(anyDuplicated(x[c("source_file", "source_id")]), 0L)
+
+  expect_true(all(x$vintage == 1976L))
+  expect_equal(x$len_m, rep(100, 14L), tolerance = 0.01)
+  expect_setequal(x$csdname_l, c("VANCOUVER", "BURNABY"))
+  # The province is the first two digits of the metropolitan area code.
+  expect_identical(unique(x$pruid_l), "59")
+  expect_identical(unique(x$pruid_r), "59")
+
+  # Before 1986 the class is the family alone and the street type is the
+  # street's own.
+  hwy <- x[x$name %in% "TRANS CANADA", ]
+  expect_identical(unique(as.character(hwy$class)), "Highway")
+  expect_identical(unique(hwy$type), "HY")
+  expect_identical(unique(hwy$dir), "E")
+  main <- x[x$name %in% "MAIN" & x$source_file == "DA.AM76.BURNABY.TXT" &
+              !is.na(x$af_l), ]
+  expect_identical(main$af_l, c(100L, 200L))
+  expect_identical(main$at_r, c(199L, 299L))
+
+  # The river is in the file and not in the roads.
+  n <- function(...) {
+    dplyr::pull(dplyr::count(get_road_network(1976, ..., cache_path = cache)),
+                "n")
+  }
+  expect_equal(n(roads_only = TRUE), 12)
+
+  con <- cs_connect(cache, read_only = TRUE)
+  expect_true(cs_db_has_vintage(con, 1976))
+  expect_identical(cs_meta_value(con, 1976, "resource"),
+                   cs_source(1976)$resource)
+  expect_identical(cs_meta_value(con, 1976, "host"), "mountainmath")
+  expect_match(cs_meta_value(con, 1976, "source_crs"), "NAD27")
+})
+
+test_that("the 1986 class is the family with its qualifier", {
+  skip_if_no_duckdb_spatial()
+  skip_if_not_installed("zip")
+  cache <- local_cache()
+  dir <- withr::local_tempdir()
+  write_fixture_amf_zip(cache, 1986, write_fixture_amf_1986(dir))
+  local_no_network()
+
+  x <- dplyr::collect(dplyr::arrange(
+    dplyr::select(get_road_network(1986, quiet = TRUE, cache_path = cache),
+                  -"geom"),
+    .data$source_id))
+  expect_identical(nrow(x), 6L)
+
+  # Where class and street-type field together are a code of List A they are
+  # stored as that class, and the field was never a street type.
+  expect_identical(as.character(x$class), c(
+    NA, "Highway multiple",
+    "Addressable Multiple street & public access lane", "Highway proposed",
+    "Creek - defined using streamline", "Trail"))
+  # Everywhere else the type is the street's own.
+  expect_identical(x$type, c("ST", NA, "BV", NA, NA, NA))
+
+  # The column's type is the whole published vocabulary.
+  con <- cs_connect(cache, read_only = TRUE)
+  dom <- DBI::dbGetQuery(con, paste0(
+    "SELECT unnest(enum_range(class)) AS v FROM ",
+    "(SELECT class FROM amf_1986 WHERE class IS NOT NULL LIMIT 1);"))$v
+  expect_setequal(dom, cs_class_domain(1986)$label)
+
+  road <- dplyr::collect(get_road_network(1986, roads_only = TRUE,
+                                          cache_path = cache))
+  expect_setequal(road$name, c("GRANVILLE", "TRANS CANADA", "KINGSWAY"))
+  planned <- dplyr::collect(get_road_network(
+    1986, roads_only = c("operational", "unknown", "planned"),
+    cache_path = cache))
+  expect_true("HWY 403" %in% planned$name)
+})
+
+test_that("a vintage imported from a retired source is imported again", {
+  skip_if_no_duckdb_spatial()
+  skip_if_not_installed("zip")
+  cache <- local_cache()
+  dir <- withr::local_tempdir()
+  write_fixture_amf_zip(cache, 1981,
+                        write_fixture_amf(dir, "wide",
+                                          name = "DA.AM81.VANCOUVE.TXT"))
+  local_no_network()
+
+  # What a cache built from the British Columbia extract on Abacus holds.
+  con <- cs_connect(cache, read_only = FALSE)
+  cs_meta_init(con)
+  DBI::dbExecute(con, cs_create_table_sql(con, "amf_1981"))
+  cs_meta_write(con, 1981, list(schema_version = cs_schema_version(),
+                                resource = "hdl:11272.1/AB2/K0EZ55"))
+  expect_false(cs_db_has_vintage(con, 1981))
+
+  # And a build cut from it, which names arcs the national file does not hold.
+  DBI::dbExecute(con, "CREATE TABLE tnet_old AS SELECT 1 AS segment_id;")
+  cs_builds_write(con, "old", list(
+    tnet_schema_version = cs_tnet_schema_version(), vintages = "1981,1991"))
+  expect_identical(cs_db_builds(con), "old")
+  expect_false(cs_db_has_build(con, "old"))
+  canstreet_disconnect(cache)
+
+  # Three messages, of which the one about the build is the one under test.
+  suppressMessages(
+    expect_message(x <- get_road_network(1981, cache_path = cache),
+                   "dropped the temporal network build old"))
+  expect_equal(dplyr::pull(dplyr::count(x), "n"), 7)
+  con <- cs_connect(cache, read_only = TRUE)
+  expect_identical(cs_meta_value(con, 1981, "resource"),
+                   cs_source(1981)$resource)
+  expect_identical(cs_db_builds(con), character(0))
+  expect_false(DBI::dbExistsTable(con, "tnet_old"))
+})

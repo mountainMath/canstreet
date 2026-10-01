@@ -68,7 +68,7 @@ test_that("roads_only applies each vintage's own definition of a road", {
 })
 
 test_that("an unknown vintage is rejected before anything is downloaded", {
-  expect_error(get_road_network(1971, cache_path = withr::local_tempdir()),
+  expect_error(get_road_network(1966, cache_path = withr::local_tempdir()),
                "No road network file")
 })
 

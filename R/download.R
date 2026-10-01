@@ -8,9 +8,12 @@
 #' The archives are kept after import (see [list_canstreet_cache()]), so the
 #' database can always be rebuilt without re-downloading several gigabytes.
 #'
-#' Data are downloaded from Statistics Canada and from the Abacus Data Network
-#' at the University of British Columbia, and are distributed under the
-#' Statistics Canada Open Licence
+#' Data are downloaded from Statistics Canada where it still serves them
+#' (2001 onwards), from the Abacus Data Network at the University of British
+#' Columbia (1991 and 1996), and from MountainMath's own storage for the
+#' 1971 to 1986 Area Master Files, which Statistics Canada does not serve
+#' online. All of it is Statistics Canada data,
+#' distributed under the Statistics Canada Open Licence
 #' (<https://www.statcan.gc.ca/en/reference/licence>).
 #'
 #' @param vintage Reference year of the network, e.g. `2021`. See
@@ -41,7 +44,8 @@ canstreet_download <- function(vintage,
 
   todo <- switch(
     src$host,
-    statcan = tibble::tibble(
+    statcan = ,
+    mountainmath = tibble::tibble(
       filename = basename(src$resource),
       url = src$resource,
       label = NA_character_,

@@ -162,7 +162,7 @@ Cochrane.
 The years are yours to pick: any two or more vintages in any spacing, `NULL` for
 everything the cache already holds, and a second build under another name can
 use a different set. `vignette("canstreet-temporal")` works the Calgary pilot
-through end to end, and `vignette("canstreet-vancouver")` builds the full
+through end to end, and `vignette("canstreet-vancouver")` builds a
 nine-vintage series over the Vancouver CMA -- 1976 to 2021, four file formats --
 to show what a segment's first year does and does not mean.
 
@@ -183,7 +183,7 @@ vintages, and about four minutes for nine.
 
 | Vintages | Product | Coverage | Source |
 |---|---|---|---|
-| 1976, 1981 | Area Master File | British Columbia, urban | Abacus Data Network (UBC) |
+| 1971, 1976, 1981, 1986 | Area Master File | Large urban centres | MountainMath (the Statistics Canada files, hosted) |
 | 1991, 1996 | Street Network File | Large urban centres | Abacus Data Network (UBC) |
 | 2001 | Road Network File (92F0157GIE) | National | Statistics Canada |
 | 2005-2025 | Road Network File (92-500-X) | National | Statistics Canada |
@@ -208,11 +208,15 @@ File](https://www12.statcan.gc.ca/census-recensement/2011/ref/dict/geo041-eng.cf
 gives the official account of the series and its coverage by census year: road
 network files covering the entire country for 2011, 2006 and 2001; street
 network files covering large urban centres for 1996; and area master files, also
-urban only, for 1991 and every census back to 1971. Of those area master files,
-the 1976 and 1981 British Columbia deposits are here; no digital file for 1971
-or 1986 could be located in any accessible repository. The package's source
-manifest is a plain data table, so further years and provinces can be added
-without code changes.
+urban only, for 1991 and every census back to 1971. All of them are here. The
+1971, 1976, 1981 and 1986 area master files are the national sets -- 34 files
+over 15 metropolitan areas in 1971, growing to 194 files over 54 by 1986.
+Statistics Canada does not serve them online, so the package fetches them from
+a copy hosted by MountainMath: one zip per census, the files as Statistics
+Canada delivered them, with the record layouts and the 1988 user guide
+alongside. 1991 is here as its Street Network File. The package's source
+manifest is a plain data table, so a further year can be added without code
+changes.
 
 The naming is Statistics Canada's own, and it is not consistent between editions
 of the dictionary. The [2001
@@ -228,22 +232,26 @@ marks nothing about the files. By 1991 the older acronym had in any case become
 the name of a *format*: that deposit is titled a Street Network File and ships
 two user guides, one for the "ARC/INFO export format" and one for the "AMF
 format". The `product` column here splits on the file rather than on the
-dictionary -- `AMF` for the two mainframe flat-file vintages, `SNF` for the two
+dictionary -- `AMF` for the four mainframe flat-file vintages, `SNF` for the two
 ArcInfo coverage vintages. That puts 1991 with the street network files, where
 the 2006 and 2011 dictionaries put it with the area master files.
 
 The area master files are not a GIS format and no GDAL driver reads them: they
-are mainframe flat files, one fixed-width record per line, describing each
-street as a chain of nodes in NAD27 UTM. `read_amf()` parses either release --
-1976 writes its coordinates as text, 1981 is an EBCDIC original whose
-coordinates are packed decimal -- into block-face segments carrying the street
-name, the feature class and the civic address range on each side. They import
-like any other vintage, and their geometry stands up better than their age
-suggests: 89-92% of their road length has a 1991 Street Network File arc within
-20 m of its midpoint, and 95-96% within 40 m. Calibrated against 2021 over the
-Vancouver CMA, the median positional disagreement on same-name roads is 11.5 m
-for 1976 and 11.0 m for 1981 -- lower than the 15.7 m of the 1991 and 1996
-street network files.
+are mainframe flat files, one per municipality, one fixed-width record per
+line, describing each street as a chain of nodes in NAD27 UTM. `read_amf()`
+parses them into block-face segments carrying the street name, the feature
+class and the civic address range on each side, and reads the two other
+transcriptions the format circulated in as well -- one of them an EBCDIC
+original whose coordinates are packed decimal. They import like any other
+vintage, and their geometry stands up better than their age suggests: between
+87% (1976) and 96% (1986) of their road length has a 1991 Street Network File
+arc within 20 m of its midpoint, and 93% to 98% within 40 m. Calibrated against
+2021 over the Vancouver CMA, the median positional disagreement on same-name
+roads is 11.4 m for 1976 and 10.9 m for 1981 -- lower than the 15.7 m of the
+1991 and 1996 street network files. One thing did not survive the decades: the
+1981 files arrived with part of their name fields overwritten, so 62,507 of
+that year's 529,158 segments keep their type, direction and geometry but have
+no name.
 
 The 2001 entry also says where the modern geometry came from, and it is a break
 rather than a continuation. The road network files "are derived from the
@@ -278,12 +286,13 @@ the early vintages carry more than roads. The area master files and the 1991
 and 1996 Street Network Files are a full topographic base rather than a road
 network -- watercourses, railways, hydro lines, census-boundary arcs and the
 outlines of parks, golf courses and airports are all carried as arcs, about a
-third of the 1996 file's 160,000 km and a comparable share of each area master
-file: shorelines, municipal boundaries and creeks account for 2,283 of 1976's
-8,857 km and 5,011 of 1981's 15,508 km. 2001 carries the boundary topology of
-the census geography alongside the network -- which the 2006 dictionary note
-above confirms was deliberate -- another 388,345 km, every provincial border
-and coastline among it.
+third of the 1996 file's 160,000 km and a share of the area master files that
+grows with each census: shorelines, creeks, railways and municipal boundaries
+account for 6,035 of 1971's 31,882 km, 15,241 of 1976's 65,709 km, 19,663 of
+1981's 80,100 km and 49,334 of 1986's 135,232 km. 2001 carries the boundary
+topology of the census geography alongside the network -- which the 2006
+dictionary note above confirms was deliberate -- another 388,345 km, every
+provincial border and coastline among it.
 
 The other half of the question is whether a road was there in the year that
 carries it, and every era has a way of drawing one that was not: 1996 classes
@@ -309,11 +318,13 @@ get_road_network(2016, roads_only = c("operational", "unknown", "planned"))
 
 That is a geocoding answer rather than a network-history one. Across the whole
 series the features that are not roads carry no addresses worth having -- of
-448,000 arcs classed as watercourse, railway, boundary, property, hydro line or
-walkway, 63 carry an address range, and all 63 are artefacts. The roads a
-vintage drew early are different: 177 of 2016's 194 "Planned" arcs are addressed
-block faces, and every one of their street names is in the 2021 file, so those
-are real addresses on streets that were built.
+916,000 arcs classed as watercourse, railway, boundary, property, hydro line or
+walkway, 646 carry any address field. Nearly all are a single stray number on
+an area master file shoreline or boundary chain, and the few with a real range
+are roads filed under the wrong class. The roads a vintage drew early are
+different: 177 of 2016's 194 "Planned" arcs are addressed block faces, and
+every one of their street names is in the 2021 file, so those are real
+addresses on streets that were built.
 
 Segments from every vintage are harmonized onto one schema -- see
 `canstreet_schema()` -- and all geometry is stored in EPSG:3347 (NAD83 /
@@ -332,13 +343,16 @@ you need to go back from a label to a code, and `canstreet_road_classes()` says
 which of the values in them are road. The vocabularies are read from
 primary sources: the reference guide shipped inside each Road Network File
 archive, the Street Network File User Guide from the Abacus deposit, and the
-2021 Census attribute domain values page. The two area master files get theirs
-from that same guide's AMF-format variant, whose feature classification is a
-(feature type, sub-type, street type) triple of which the area master file
-stores the first two -- so `HN` is a highway, `MB` a political boundary, `SN` a
-shoreline. Where no vocabulary was ever published -- 2005 to 2010, and the two
-area master file codes the guide does not account for -- the codes are kept as
-they are.
+2021 Census attribute domain values page. The area master files get theirs
+from the one guide that survives for them, The Area Master File User Guide of
+January 1988, which ships in each hosted archive. Its feature classification
+is a (feature type, sub-type, street type) triple. The 1986 file stores all
+three, so its classes are the Street Network File's, label for label --
+"Highway multiple" is one string in 1986, 1991 and 1996. The 1971 to 1981 files
+store the first two only, so there a class names a family: `HN` is a highway,
+`MB` a political boundary, `SN` a shoreline. Where no vocabulary was ever
+published -- 2005 to 2010, and the two early area master file codes the guide
+does not account for -- the codes are kept as they are.
 
 ### Why CanVec is not a fourth source
 
@@ -360,7 +374,7 @@ with 6,159 at 2010. Every one carries a populated `geobase_id`, because the road
 content is Natural Resources Canada's National Road Network dropped in around
 2010. The old dates sit on what was left alone: Northwest Territories `trail_1`
 reaches back to 1946, with its own mode at 1970. Those dates are the lead worth
-following if pre-1976 street geometry is ever wanted -- but the lead is the
+following if pre-1971 street geometry is ever wanted -- but the lead is the
 topographic sheets themselves, not CanVec.
 
 An old date would in any case date a compilation rather than a network. A

@@ -30,7 +30,7 @@
 #' # What counts as a road
 #'
 #' The 1991 and 1996 Street Network Files are not road networks, and neither
-#' are the 1976 and 1981 Area Master Files. They carry watercourses, railways,
+#' are the 1971 to 1986 Area Master Files. They carry watercourses, railways,
 #' hydro lines, census-boundary arcs and the outlines of parks, golf courses and
 #' airports as arcs alongside the streets -- about a third of the 1996 file's
 #' 160,000 km. 2001 has the same problem in a different form: it is the one year
@@ -90,7 +90,7 @@
 #'   into their neighbours.
 #' @param roads_only Restrict each vintage to its road features, using that
 #'   vintage's own vocabulary -- see [canstreet_road_classes()]. This matters
-#'   most for 1976, 1981, 1991, 1996 and 2001: the Area Master Files and Street
+#'   most for 1971 to 1996 and for 2001: the Area Master Files and Street
 #'   Network Files are full topographic bases, and a third of their length is
 #'   watercourses, railways, hydro lines, census boundaries and the outlines of
 #'   parks and airports, while 2001 carries the boundary arcs of the census
@@ -419,16 +419,7 @@ remove_temporal_network <- function(name,
   if (!file.exists(cs_db_path(cache_path))) return(invisible(names))
 
   con <- cs_connect(cache_path, read_only = FALSE)
-  for (b in names) {
-    for (t in c(cs_tnet_table_name(b), cs_tnet_src_table_name(b))) {
-      DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ",
-                                 DBI::dbQuoteIdentifier(con, t), ";"))
-    }
-    if (DBI::dbExistsTable(con, "canstreet_builds")) {
-      DBI::dbExecute(con, "DELETE FROM canstreet_builds WHERE build = ?;",
-                     params = list(b))
-    }
-  }
+  cs_builds_drop(con, names)
   invisible(names)
 }
 
@@ -438,11 +429,13 @@ remove_temporal_network <- function(name,
 cs_require_build <- function(con, name) {
   if (cs_db_has_build(con, name)) return(invisible(TRUE))
   have <- cs_db_builds(con)
-  # Present but written by an older layout is a different fact from absent,
-  # and the remedy is the same call, so say which one it is.
+  # Present but written by an older layout, or over a vintage that has since
+  # changed source, is a different fact from absent, and the remedy is the
+  # same call, so say which one it is.
   if (name %in% have) {
     stop("The temporal network build \"", name, "\" was written by an older ",
-         "layout of this package and cannot be read.\n",
+         "layout of this package, or from a vintage whose source has since ",
+         "changed, and cannot be read.\n",
          "Rebuild it with `build_temporal_network(\"", name, "\", c(...))`.",
          call. = FALSE)
   }

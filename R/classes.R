@@ -3,7 +3,7 @@
 # `class` answers two different questions at once, and both have to be asked
 # before a vintage can be treated as a road network.
 #
-# The first is whether the arc is a road at all. The 1976 and 1981 Area Master
+# The first is whether the arc is a road at all. The 1971 to 1986 Area Master
 # Files and the 1991 and 1996 Street Network Files are topographic bases, not
 # road networks: alongside the streets they carry shorelines, watercourses,
 # railways, hydro lines, and the outlines of parks, golf courses and
@@ -13,9 +13,9 @@
 # has one answer.
 #
 # The second is whether the road was there *in that year*. Every vocabulary
-# that has ever had a word for it has one: the Street Network File classes an
-# arc `HPR` "Highway proposed" (in 1996, Highway 403, Highway 407 and Autoroute
-# 50 -- none of them open in 1996), 2001 spells "under construction" into eight
+# that has ever had a word for it has one: the 1986 Area Master File and the
+# Street Network File class an arc "Highway proposed" (in 1996, Highway 403,
+# Highway 407 and Autoroute 50 -- none of them open in 1996), 2001 spells "under construction" into eight
 # of its composite descriptions, and 2011 onward class 28 "Planned", which in
 # 2021 is 203 named-but-unbuilt subdivision streets. Those arcs are drawn where
 # the road was going to go, so left in they date a road to the vintage that
@@ -43,8 +43,10 @@
 #' against the stored column goes through `cs_class_label()` first.
 #'
 #' The Area Master File codes are given here as the two-character
-#' (feature type, sub-type) pairs the files carry; `cs_domain_amf_class()`
-#' labels the eleven of them List A accounts for, and `OB` and `Z` stay bare.
+#' (feature type, sub-type) pairs the files carry, followed in 1986 by the
+#' List A qualifier where there is one. For 1971 to 1981
+#' `cs_domain_amf_class()` labels the eleven of them List A accounts for, and
+#' `OB` and `Z` stay bare.
 #'
 #' @param vintage Reference year.
 #' @return A tibble of `code`, `category` and `status`, or `NULL` for a vintage
@@ -55,7 +57,10 @@ cs_class_categories <- function(vintage) {
   src <- cs_source(vintage)
   if (!nrow(src)) return(NULL)
   vintage <- as.integer(vintage)
-  if (identical(src$product[1], "AMF")) return(cs_categories_amf())
+  if (identical(src$product[1], "AMF")) {
+    if (vintage >= 1986L) return(cs_categories_amf_1986())
+    return(cs_categories_amf())
+  }
   if (identical(src$product[1], "SNF")) return(cs_categories_snf())
   if (vintage == 2001L) return(cs_categories_rnf_2001())
   if (vintage >= 2011L) return(cs_categories_rnf(vintage))
@@ -63,22 +68,25 @@ cs_class_categories <- function(vintage) {
   NULL
 }
 
-# The Area Master File vocabulary, read off the four deposits: an ordinary
-# street carries no class at all (146,693 of the 194,000 node records), and a
-# class names a feature type of which only three are road. `HN` is the highway
-# (Trans-Canada, Gaglardi Way and the interchanges), `Z` the arterial (Kingsway,
-# Lougheed Highway -- 63% addressed, the only classed value that is), and `BN`
-# the bridge or tunnel. Nothing in this vocabulary distinguishes a road that was
-# not yet built.
+# The 1971, 1976 and 1981 Area Master File vocabulary, read off the files: an
+# ordinary street carries no class at all (1,162,956 of the 1,412,948 node
+# records), and a class names a feature type of which only three are road. `HN`
+# is the highway (Trans-Canada, Highway 401 and the interchanges), `Z` the
+# arterial (Kingsway, The Queensway, boulevard Decarie -- some 60% addressed,
+# the only classed value that is), and `BN` the bridge or tunnel. Nothing in
+# this vocabulary distinguishes a road that was not yet built, though 1981's
+# `OB` holds a few: "AUTOROUTE 50 PROPOSE" and "AUTOROUTE 550 PROPOS" are 126
+# of its 419 arcs, beside a pipeline, a prison boundary and transmission
+# lines. It is not road, so they go with it.
 #
-# The categories are read from the data, not from a guide. List A of the 1991
-# Street Network File guide's Area Master File variant (`snfamf.pdf`) does
-# decompose a class into feature type, sub-type and street type, and its first
-# two columns are these very codes -- `cs_domain_amf_class()` takes the labels
-# from it -- but its road/non-road split cannot simply be inherited. `Z` is the
-# case that settles it: List A calls the `Z` family hydroline, telephone line,
-# fence and pipeline, while the Area Master File's `Z` arcs are Kingsway,
-# Lougheed Highway and Grandview Highway. The arcs win.
+# The categories are read from the data, not from a guide. List A of the 1988
+# Area Master File guide does decompose a class into feature type, sub-type and
+# street type, and its first two columns are these very codes --
+# `cs_domain_amf_class()` takes the labels from it -- but it describes the 1986
+# file, and its road/non-road split cannot simply be inherited. `Z` is the case
+# that settles it: List A calls the `ZN` family hydroline, telephone line,
+# fence and pipeline, while the earlier files' `Z` arcs are Kingsway, Lougheed
+# Highway and Grandview Highway. The arcs win.
 cs_categories_amf <- function() {
   tibble::tribble(
     ~code, ~category,
@@ -91,12 +99,48 @@ cs_categories_amf <- function() {
     "RN",  "rail",
     "MB",  "boundary",     # municipal
     "UB",  "boundary",     # urban-rural
-    "OB",  "boundary",     # other
     "CB",  "boundary",     # other
+    "OB",  "other",        # watershed, prison, pipeline, proposed autoroute
     "GB",  "property",     # park, reserve or institution outline
     "PP",  "property"      # park or school property
   ) |>
     dplyr::mutate(status = "operational")
+}
+
+# The 1986 Area Master File, whose vocabulary is List A itself and whose arcs
+# agree with it. The road families are the addressable multiple street `E`
+# (9,641 arcs, half of them addressed: boulevards, avenues and the divided
+# highways that carry civic numbers), the highways (`HN*`), the bridges and
+# tunnels (`BN*` -- "BRIDGE 001", "PONT 001", the Angus L. Macdonald), and of
+# the roadway-associated family the ramp `FNRA`, the feature extension `FNEX`
+# ("YORKSHIRE AV EXT", "NEWTON DR. EXTENSION") and the unqualified `FN`
+# ("ACCESS LANE", "VIADUC", "RAMP 021"). `FNTR` and `FNWA` are not: 5,856 trail
+# arcs and "CANAL WALKWAY", "PASSAGE DE PIETONS 6".
+#
+# `HNPR` is the class that says a highway was not open in 1986: 66 arcs and
+# 27 km, the Red Hill Creek Expressway, Autoroute 50 and "HIGHWAY NO 403 PROP."
+# `HNUC` occurs on no arc and takes its status from the guide alone.
+#
+# The assignments happen to come out as `cs_categories_snf()`'s do, family for
+# family, but they are written out here rather than derived from it: they were
+# read off this file's arcs, and a correction to one year must not move the
+# other.
+cs_categories_amf_1986 <- function() {
+  road <- c("E", "HNSI", "HNMU", "HN", "BNSI", "BNMU", "BNMN", "BN", "FNRA",
+            "FNEX", "FN")
+  fam <- c(RN = "rail", WN = "water", SN = "water", IN = "water",
+           MB = "boundary", CB = "boundary", UB = "boundary",
+           GB = "property", PP = "property", ON = "topography",
+           ZN = "utility", DA = "other")
+  d <- cs_domain_amf_1986_class()
+  cat <- unname(fam[substr(d$code, 1L, 2L)])
+  cat[d$code %in% c("FNTR", "FNWA")] <- "path"
+  cat[d$code %in% c(road, "HNPR", "HNUC")] <- "road"
+  status <- ifelse(d$code == "HNPR", "planned",
+                   ifelse(d$code == "HNUC", "under_construction",
+                          "operational"))
+  stopifnot(!anyNA(cat))
+  tibble::tibble(code = d$code, category = cat, status = status)
 }
 
 # List A of the Street Network File User Guide. The road families are the
@@ -313,14 +357,14 @@ cs_roads_only_sql <- function(vintages, qualify = length(vintages) > 1L,
 #' the values [build_temporal_network()] is built from.
 #'
 #' Two questions are being answered at once. The first is whether the arc is a
-#' road at all: the 1976 and 1981 Area Master Files and the 1991 and 1996 Street
+#' road at all: the 1971 to 1986 Area Master Files and the 1991 and 1996 Street
 #' Network Files are topographic bases carrying shorelines, watercourses,
 #' railways, hydro lines and the outlines of parks and municipalities alongside
 #' the streets, and 2001 carries the boundary arcs of the census geography --
 #' 388,345 km of them. The Road Network Files from 2005 on carry none of this.
 #'
 #' The second is whether the road was there in the reference year. Arcs classed
-#' "Highway proposed" in 1996 (Highway 403, Highway 407, Autoroute 50), "under
+#' "Highway proposed" in 1986 and 1996 (Highway 403, Autoroute 50), "under
 #' construction" in 2001, or "Planned" in 2016 and 2021 are drawn where a road
 #' was going to go. They are roads, and `category` calls them roads, but their
 #' `status` is not `operational` and the default filter drops them -- otherwise
@@ -340,8 +384,8 @@ cs_roads_only_sql <- function(vintages, qualify = length(vintages) > 1L,
 #'   in the manifest.
 #' @return A [tibble::tibble()] of `vintage`, `code`, `label`, `category`,
 #'   `status` and `road`. `label` is the value the class column is stored as,
-#'   which is the code itself wherever no guide defines it -- the Area Master
-#'   Files' `OB` and `Z`, and any code a vintage carries that its own guide
+#'   which is the code itself wherever no guide defines it -- the early Area
+#'   Master Files' `OB` and `Z`, and any code a vintage carries that its own guide
 #'   omits.
 #' @seealso [canstreet_domains()] for the published vocabularies,
 #'   [get_road_network()] for the filter itself.

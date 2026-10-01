@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **historical Statistics Canada road/street network files**, so the evolution of the Canadian road
 network over time can be analysed reproducibly.
 
-v1 downloads, harmonizes and serves the 1976–2025 series; v2 matches segments across vintages and
+v1 downloads, harmonizes and serves the 1971–2025 series; v2 matches segments across vintages and
 writes a temporally unified network. Both are implemented and `R CMD check` is clean.
 
 ## Commands
@@ -49,7 +49,7 @@ here.
 |---|---|
 | `R/sources.R` | **The manifest.** One row per vintage; every other module reads it. Adding a vintage is a data edit here, not a code change. |
 | `R/download.R` | `canstreet_download()`, archive extraction |
-| `R/abacus.R` | Dataverse manifest resolution and file access for the pre-2001 vintages |
+| `R/abacus.R` | Dataverse manifest resolution and file access for the 1991 and 1996 vintages |
 | `R/amf.R` | The Area Master File reader: record layout, COMP-3, chains, `read_amf()` |
 | `R/domains.R` | The published `class`/`rank` vocabularies, per vintage, and the `ENUM` retyping |
 | `R/classes.R` | Which class values are road, per vintage: the category/status table and the filter predicate |
@@ -71,6 +71,8 @@ Beyond the code:
 - `vignettes.orig/*.Rmd` — the analyses worked end to end, with their numbers: `canstreet.Rmd`
   (getting started), `canstreet-temporal.Rmd` (a build explained), `canstreet-vancouver.Rmd`
   (45 years over one CMA), `canstreet-renames.Rmd` (classifying name changes).
+- `data-raw/amf_archives.R` — builds the four hosted Area Master File zips from the Statistics
+  Canada delivery and uploads them to the S3 location the manifest reads.
 - `.claude/notes/corpus-facts.md` — measured numbers: per-vintage counts, what the road filter
   costs, positional agreement and calibrated tolerances, build benchmarks, provenance and what
   could not be found anywhere. Consult it before asserting any figure about these files.
@@ -139,7 +141,8 @@ Each is documented where it bites; this is the index.
 - DuckDB spatial 1.5.4 has no `ST_Hausdorff`, `ST_Split`, `ST_Snap` or `ST_Relate`, and
   `generate_series` does not bind in a scalar position (`R/tnet.R`).
 - A whole-arc `ST_Azimuth` is meaningless on a long arc — use `cs_local_az()` (`R/db.R`).
-- Never mark AMF record bytes `latin1` and convert; never split the file on `0x0a` (`R/amf.R`).
+- Never mark AMF record bytes `latin1` and convert; never split a packed file on `0x0a` — go
+  through `cs_amf_record_bounds()`, which knows which layout may be split plainly (`R/amf.R`).
 - Never take the 2025 GeoPackage (CircularStrings), and 2001 is the one vintage where the `a`
   variant is the wrong one (`R/sources.R`).
 - When folding names in a vignette, fold in DuckDB with `strip_accents`, not with R's

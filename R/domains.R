@@ -11,9 +11,12 @@
 # Where each domain comes from, all of them primary sources rather than
 # secondary documentation:
 #
-#   1976, 1981  The feature-type and sub-type columns of the same List A, in
-#               the Area Master File variant of that guide (`snfamf.pdf`, also
-#               in the 1991 deposit) -- see `cs_domain_amf_class()`.
+#   1971-1981   The feature-type and sub-type columns of List A, taken as
+#               families -- see `cs_domain_amf_class()`.
+#   1986        "List A: Feature Classification" in The Area Master File User
+#               Guide, Geography Division, January 1988, which the hosted
+#               archive carries as `documentation/AMF_86_Users_Guide.pdf` --
+#               see `cs_domain_amf_1986_class()`.
 #   1991, 1996  "List A: Feature Classification" in the Street Network File User
 #               Guide (`snfarc.pdf`), which the Abacus deposit ships alongside
 #               the shapefiles.
@@ -28,54 +31,43 @@
 #
 # Every guide but 2021's ships *inside* the archive the vintage arrives in:
 # `92-500-G<year>001-eng.pdf` in each Road Network File zip,
-# `92f0157g2001000-eng.pdf` in 2001's, and `snfarc.pdf` and `snfamf.pdf` in the
-# 1991 Abacus deposit. Extract it from the cached zip and read it with
-# `pdftotext -layout` rather than searching the web -- the attribute-domain
-# pages on the Statistics Canada site cover 2021 only, and the 2011 and 2016
-# spellings of that URL return the soft 404.
+# `92f0157g2001000-eng.pdf` in 2001's, `snfarc.pdf` and `snfamf.pdf` in the
+# 1991 Abacus deposit, and the 1988 guide in the `documentation` directory of
+# each Area Master File zip. Extract it from the cached archive and read it
+# rather than searching the web -- the attribute-domain pages on the Statistics
+# Canada site cover 2021 only, and the 2011 and 2016 spellings of that URL
+# return the soft 404. The two Area Master File guides are scans with no text
+# layer, so `pdftotext` returns nothing for them.
 #
 # 2005 through 2010 get no domain: the 2006 reference guide documents no CLASS
 # or RANK table, and the 2006 file carries neither column.
 
-# Sources for the labels below, kept out of the roxygen block on purpose: these
-# are live URLs, and a dead link in an installed manual page is a CRAN problem
-# waiting to happen.
-#
-#   The guide itself -- Street Network File User Guide (AMF Format), Geography
-#   Division, Statistics Canada, June 1992. List A is on its page 44. It is
-#   `snfamf.pdf` in the 1991 Abacus deposit, file id 67973:
-#     https://abacus.library.ubc.ca/api/access/datafile/67973
-#     https://abacus.library.ubc.ca/dataset.xhtml?persistentId=hdl:11272.1/AB2/2FCGQJ
-#
-#   The two deposits the labels are applied to, neither of which ships any
-#   documentation of its own -- flat files only:
-#     1976  https://abacus.library.ubc.ca/dataset.xhtml?persistentId=hdl:11272.1/AB2/MESORS
-#     1981  https://abacus.library.ubc.ca/dataset.xhtml?persistentId=hdl:11272.1/AB2/K0EZ55
-#
-#   Searched and empty, so that nobody repeats it: an Abacus search for "Area
-#   Master File" returns five datasets and no data dictionary; publications.gc.ca,
-#   archive.org, Library and Archives Canada, HathiTrust and the university data
-#   libraries hold no 1976 or 1981 AMF guide in either official language.
+# What documents the Area Master File classes, and what does not, so that
+# nobody repeats the search. Statistics Canada delivered the 1971 to 1986 files
+# with four kinds of document, all of them in each hosted archive's
+# `documentation` directory: a record layout for 1971-1981 and another for 1986,
+# a reference list of the municipalities each file covers, a count of records
+# per file, and one user guide -- The Area Master File User Guide, Geography
+# Division, January 1988, which describes the 1986 file. Neither record layout
+# lists a feature class, and no guide to the 1971, 1976 or 1981 file is known:
+# publications.gc.ca, archive.org, Library and Archives Canada, HathiTrust and
+# the university data libraries hold none in either official language, and
+# Statistics Canada supplied none with the files.
 
-#' The 1976 and 1981 Area Master File feature classification
+#' The 1971, 1976 and 1981 Area Master File feature classification
 #'
-#' No user guide for the 1976 or 1981 Area Master File survives in any archive
-#' searched -- the two Abacus deposits ship the flat files and nothing else, and
-#' neither Statistics Canada nor Library and Archives Canada nor any data
-#' library holds a scanned one. What does survive is the *format* guide for the
-#' product that replaced it: the Street Network File User Guide (AMF Format),
-#' Geography Division, June 1992, shipped as `snfamf.pdf` in the 1991 Abacus
-#' deposit. Its List A is the key, because it classifies a feature by three
-#' parts rather than one:
+#' No list of feature classes survives for these three files, only for the one
+#' that followed them. List A of the 1988 guide classifies a feature by three
+#' parts,
 #'
 #'   feature type (1 char) + sub-feature type (1 char) + street type (2 chars)
 #'
-#' and the Area Master File stores exactly the first two of those in its
-#' two-character class field, the third being an ordinary List B street type in
-#' the `type` column (`HN` carries `HY`, `WY`, `RD`; a modern List A `HN` would
-#' carry `SI` or `MU`). So an Area Master File class names a *family*, and the
-#' label here is that family's interpretation, taken from the List A row whose
-#' street type is blank.
+#' and the earlier files store the first two of those in the same two columns
+#' but not the third: where the 1986 file puts a List A qualifier (`HN` with
+#' `SI` or `MU`), they carry an ordinary List B street type (`HN` with `HY`,
+#' `PY`, `BV`). So an Area Master File class of these years names a *family*,
+#' and the label here is that family's, taken from the List A row whose street
+#' type is blank.
 #'
 #' Every one is corroborated against the arcs it labels: `HN` is the
 #' Trans-Canada, Highway 401 and the Upper Levels; `BN` is the Lions Gate,
@@ -85,24 +77,28 @@
 #'
 #' Two observed codes are deliberately left out, so they stay bare in the data:
 #'
-#' - `OB` (99 arcs) is not a List A combination at all. The sub-type letter
-#'   reads as the geometric role -- `N` a linear feature, `B` a boundary, `P` a
-#'   point -- and List A pairs the `O` topography family with `N` only. The arcs
-#'   are "OAKALLA PRISON BDRY" and "GVRD WATERSHED BOUNDARY", so "other
-#'   boundary" is the obvious reading, but it is a reading and not a source.
-#' - `Z` (189 arcs, 1976 only) is where List A and the data flatly disagree.
-#'   The guide gives the `Z` family as hydroline, telephone line, fence and
-#'   pipeline; the arcs are Kingsway, Lougheed Highway and Grandview Highway,
-#'   63% of them addressed. `cs_categories_amf()` follows the data and calls
-#'   them road, and no label is asserted over the top of that.
+#' - `OB` is not a List A combination at all. The sub-type letter reads as the
+#'   geometric role -- `N` a linear feature, `B` a boundary, `P` a point -- and
+#'   List A pairs the `O` topography family with `N` only. It is 6 arcs in each
+#'   of 1971 and 1976 ("GVRD WATERSHED BOUNDARY") and 419 in 1981, where it has
+#'   become a catch-all: "AUTOROUTE 50 PROPOSE", "PIPELINE", "OAKALLA PRISON
+#'   BDRY", "LIGNE DE TRANSMISSION", "DITCH". "Other" is the obvious reading,
+#'   but it is a reading and not a source.
+#' - `Z` (547 arcs in 1971, 662 in 1976, none in 1981) is where List A and the
+#'   data flatly disagree. The guide gives the `Z` family as hydroline,
+#'   telephone line, fence and pipeline; the arcs are Kingsway, The Queensway,
+#'   boulevard Decarie and Lougheed Highway, some 60% of them addressed.
+#'   `cs_categories_amf()` follows the data and calls them road, and no label
+#'   is asserted over the top of that.
 #'
 #' A blank class needs no entry: it is stored as `NULL`, and List A gives it its
 #' own row -- "Addressable Single street & public access lane" -- which is why
 #' the ordinary street is the unclassed value here exactly as it is in the
 #' Street Network File.
 #'
-#' `PP` is carried though neither vintage uses it, because the declared type is
-#' the whole vocabulary rather than the codes observed.
+#' `PP` is carried though no segment has it -- a point feature is a single node
+#' -- because the declared type is the whole vocabulary rather than the codes
+#' observed.
 #'
 #' @return A tibble of `code` and `label`.
 #' @keywords internal
@@ -122,6 +118,36 @@ cs_domain_amf_class <- function() {
     "UB",  "Urban-rural boundary",
     "PP",  "Point feature"
   )
+}
+
+#' The 1986 Area Master File feature classification
+#'
+#' List A of The Area Master File User Guide (January 1988), which is row for
+#' row the list the Street Network File guide prints four years later. The two
+#' products spell the same class differently -- the Area Master File keeps the
+#' feature type and sub-type as two characters and puts the qualifier in the
+#' street-type field (`HN` + `MU`), where the Street Network File drops the
+#' sub-type and writes `HMU` -- so this domain is `cs_domain_snf_class()` with
+#' each family's letter written out as the file carries it. That is what makes
+#' "Highway multiple" one string in 1986, 1991 and 1996. The 1988 wording
+#' differs from the 1992 in two places only, a dash in "Bridge or Tunnel -
+#' Addressable Single street" and the spelling "Feature extention".
+#'
+#' The codes are the concatenation `cs_amf_harmonize_sql()` stores: class and
+#' street type together where List A names the pair, the class alone where it
+#' does not.
+#'
+#' @return A tibble of `code` and `label`.
+#' @keywords internal
+#' @noRd
+cs_domain_amf_1986_class <- function() {
+  family <- c(E = "E", H = "HN", B = "BN", R = "RN", F = "FN", W = "WN",
+              S = "SN", I = "IN", M = "MB", C = "CB", G = "GB", U = "UB",
+              P = "PP", O = "ON", Z = "ZN", D = "DA")
+  d <- cs_domain_snf_class()
+  d$code <- paste0(unname(family[substr(d$code, 1L, 1L)]),
+                   substring(d$code, 2L))
+  d
 }
 
 #' The 1991 and 1996 Street Network File feature classification
@@ -368,7 +394,9 @@ cs_class_domain <- function(vintage) {
   if (!nrow(src)) return(NULL)
   vintage <- as.integer(vintage)
   d <- if (identical(src$product[1], "AMF")) {
-    cs_domain_amf_class()
+    # The 1986 file is the first to qualify a class, and the only one with a
+    # guide of its own.
+    if (vintage >= 1986L) cs_domain_amf_1986_class() else cs_domain_amf_class()
   } else if (identical(src$product[1], "SNF")) {
     cs_domain_snf_class()
   } else if (vintage == 2001L) {
@@ -503,13 +531,16 @@ cs_label_vintage <- function(con, table, vintage) {
 #' Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
 #' reference guides document no class or rank table. Those vintages keep the
 #' codes the source files carry, as does any individual code its vintage's guide
-#' omits -- the 1976 and 1981 `OB` and `Z`, for instance.
+#' omits -- the `OB` and `Z` of the 1971 to 1981 Area Master Files, for
+#' instance.
 #'
-#' Sources, all primary: the Street Network File User Guide "List A" for 1991 and
-#' 1996, and the feature-type and sub-type columns of the same list, in that
-#' guide's Area Master File variant, for 1976 and 1981; the reference guide
-#' shipped inside each Road Network File archive for 2001, 2011 and 2016; and
-#' the 2021 Census attribute domain values page for 2021. Where a vintage gives two codes the same description -- 2016's `90` and
+#' Sources, all primary: "List A" of the Street Network File User Guide for
+#' 1991 and 1996 and of The Area Master File User Guide (1988) for 1986, which
+#' are the same list; the feature-type and sub-type columns of that list for
+#' 1971 to 1981, whose files qualify a class no further and for which no guide
+#' survives; the reference guide shipped inside each Road Network File archive
+#' for 2001, 2011 and 2016; and the 2021 Census attribute domain values page for
+#' 2021. Where a vintage gives two codes the same description -- 2016's `90` and
 #' `95` are both "Unknown" -- each keeps the published wording with its own code
 #' appended, because a DuckDB `ENUM` cannot hold the same value twice.
 #'

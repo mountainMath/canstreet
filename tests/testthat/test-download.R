@@ -171,3 +171,41 @@ test_that("the 1991 pattern takes the coverages, not the derived files", {
   out <- canstreet_download(1991, quiet = TRUE, cache_path = cache)
   expect_equal(out$filename, c("net_hali.zip", "net_othu.zip"))
 })
+
+test_that("a hosted Area Master File vintage is fetched into the usual cache", {
+  cache <- withr::local_tempdir()
+  asked <- NULL
+  local_mocked_bindings(
+    # The probe is for Statistics Canada's soft 404; a missing object on the
+    # hosted bucket is a real one.
+    cs_url_is_available = function(url) stop("should not probe"),
+    cs_download = function(url, destfile, quiet = FALSE, ...) {
+      asked <<- c(asked, url)
+      file.create(destfile)
+      invisible(destfile)
+    }
+  )
+
+  out <- canstreet_download(1976, quiet = TRUE, cache_path = cache)
+  expect_identical(asked, cs_source(1976)$resource)
+  expect_identical(nrow(out), 1L)
+  expect_identical(out$filename, "amf_1976.zip")
+  expect_identical(out$path,
+                   file.path(cache, "downloads", "1976", "amf_1976.zip"))
+  expect_true(file.exists(out$path))
+
+  # Once there, it is not asked for again.
+  canstreet_download(1976, quiet = TRUE, cache_path = cache)
+  expect_length(asked, 1L)
+})
+
+test_that("an unreachable bucket degrades to the same classed condition", {
+  cache <- withr::local_tempdir()
+  local_mocked_bindings(
+    cs_download = function(url, destfile, quiet = FALSE, ...)
+      stop(cs_network_error("HTTP status was '404 Not Found'"))
+  )
+  expect_error(canstreet_download(1986, quiet = TRUE, cache_path = cache),
+               class = "canstreet_network_error")
+  expect_length(list.files(file.path(cache, "downloads", "1986")), 0L)
+})

@@ -13,8 +13,8 @@ in the manifest.}
 \value{
 A \code{\link[tibble:tibble]{tibble::tibble()}} of \code{vintage}, \code{code}, \code{label}, \code{category},
 \code{status} and \code{road}. \code{label} is the value the class column is stored as,
-which is the code itself wherever no guide defines it -- the Area Master
-Files' \code{OB} and \code{Z}, and any code a vintage carries that its own guide
+which is the code itself wherever no guide defines it -- the early Area
+Master Files' \code{OB} and \code{Z}, and any code a vintage carries that its own guide
 omits.
 }
 \description{
@@ -27,14 +27,14 @@ the values \code{\link[=build_temporal_network]{build_temporal_network()}} is bu
 }
 \details{
 Two questions are being answered at once. The first is whether the arc is a
-road at all: the 1976 and 1981 Area Master Files and the 1991 and 1996 Street
+road at all: the 1971 to 1986 Area Master Files and the 1991 and 1996 Street
 Network Files are topographic bases carrying shorelines, watercourses,
 railways, hydro lines and the outlines of parks and municipalities alongside
 the streets, and 2001 carries the boundary arcs of the census geography --
 388,345 km of them. The Road Network Files from 2005 on carry none of this.
 
 The second is whether the road was there in the reference year. Arcs classed
-"Highway proposed" in 1996 (Highway 403, Highway 407, Autoroute 50), "under
+"Highway proposed" in 1986 and 1996 (Highway 403, Autoroute 50), "under
 construction" in 2001, or "Planned" in 2016 and 2021 are drawn where a road
 was going to go. They are roads, and \code{category} calls them roads, but their
 \code{status} is not \code{operational} and the default filter drops them -- otherwise

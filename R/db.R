@@ -305,14 +305,28 @@ cs_db_vintages <- function(con) {
            logical(1))]
 }
 
-#' A vintage is usable if it is present and was written by this schema version
+#' A vintage is usable if it is present, was written by this schema version,
+#' and came from the source the manifest names
+#'
+#' The last condition is what retires a table when a vintage changes source
+#' without the schema changing: 1976 and 1981 were British Columbia extracts
+#' from Abacus before they were the national files, and a cache holding the
+#' extracts must re-import those two years rather than serve a network that
+#' stops at the Rockies. Bumping `cs_schema_version()` would have done it too,
+#' at the price of re-importing every other vintage. A table with no recorded
+#' resource is taken at its word.
 #' @keywords internal
 #' @noRd
 cs_db_has_vintage <- function(con, vintage) {
   vintage <- as.integer(vintage)
   if (!vintage %in% cs_db_vintages(con)) return(FALSE)
-  identical(cs_meta_value(con, vintage, "schema_version"),
-            as.character(cs_schema_version()))
+  if (!identical(cs_meta_value(con, vintage, "schema_version"),
+                 as.character(cs_schema_version()))) {
+    return(FALSE)
+  }
+  src <- cs_source(vintage)
+  recorded <- cs_meta_value(con, vintage, "resource")
+  is.na(recorded) || !nrow(src) || identical(recorded, src$resource[1])
 }
 
 #' Rebuild the `segments` view over every imported vintage
@@ -413,11 +427,41 @@ cs_db_builds <- function(con) {
            logical(1))]
 }
 
-#' A build is usable if it is present and was written by this layout version
+#' Drop builds: both tables and the metadata rows
+#' @keywords internal
+#' @noRd
+cs_builds_drop <- function(con, builds) {
+  for (b in builds) {
+    for (t in c(cs_tnet_table_name(b), cs_tnet_src_table_name(b))) {
+      DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ",
+                                 DBI::dbQuoteIdentifier(con, t), ";"))
+    }
+    if (DBI::dbExistsTable(con, "canstreet_builds")) {
+      DBI::dbExecute(con, "DELETE FROM canstreet_builds WHERE build = ?;",
+                     params = list(b))
+    }
+  }
+  invisible(builds)
+}
+
+#' A build is usable if it is present, was written by this layout version,
+#' and every vintage it was made from is still usable
+#'
+#' The last condition follows a vintage that changed source: a build over the
+#' British Columbia extracts of 1976 and 1981 describes arcs the national files
+#' do not hold under those identifiers, so it is retired with the tables it was
+#' cut from. `cs_import_vintage()` drops such a build when it replaces the
+#' table; this is what refuses it before that has happened.
 #' @keywords internal
 #' @noRd
 cs_db_has_build <- function(con, build) {
   if (!build %in% cs_db_builds(con)) return(FALSE)
-  identical(cs_builds_value(con, build, "tnet_schema_version"),
-            as.character(cs_tnet_schema_version()))
+  if (!identical(cs_builds_value(con, build, "tnet_schema_version"),
+                 as.character(cs_tnet_schema_version()))) {
+    return(FALSE)
+  }
+  used <- cs_builds_value(con, build, "vintages")
+  if (is.na(used)) return(TRUE)
+  used <- as.integer(strsplit(used, ",", fixed = TRUE)[[1]])
+  all(vapply(used, function(v) cs_db_has_vintage(con, v), logical(1)))
 }

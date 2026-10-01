@@ -7,7 +7,8 @@
 read_amf(path, nodes = FALSE)
 }
 \arguments{
-\item{path}{Path to an Area Master File, conventionally named \code{.data}.}
+\item{path}{Path to one Area Master File. \code{\link[=canstreet_download]{canstreet_download()}} delivers a
+vintage as a zip archive of them, to be extracted first.}
 
 \item{nodes}{Return the underlying node records instead of segments. The
 node view is one row per record as the file stores it, including the
@@ -20,23 +21,33 @@ An \link[sf:sf]{sf::sf} tibble of \code{LINESTRING} segments in EPSG:3347, or, w
 in their own UTM zone.
 }
 \description{
-Parses a 1976 or 1981 Area Master File -- the mainframe flat file that
-preceded the Street Network File -- into street segments. Each segment is
-one block face: the piece of a street between two consecutive nodes of its
-chain, carrying the street name, the feature class and the civic address
-range on each side.
+Parses an Area Master File -- the mainframe flat file that preceded the
+Street Network File, released for the 1971, 1976, 1981 and 1986 censuses --
+into street segments. Each segment is one block face: the piece of a street
+between two consecutive nodes of its chain, carrying the street name, the
+feature class and the civic address range on each side.
 }
 \details{
-No GIS driver reads this format, so the parser is part of this package. The
-two releases differ only in how they store coordinates: 1976 writes them as
-text, while 1981 is an EBCDIC file whose coordinates are packed decimal and
-survive in the deposited copy as Latin-1 mojibake. Both are handled, and the
-layout is detected from the file rather than supplied.
+No GIS driver reads this format, so the parser is part of this package. One
+file is one municipality, or a few. The record survives in three
+transcriptions that differ only in how they store coordinates -- as packed
+decimal out of the EBCDIC original, or printed as seven or as eight digits
+-- and all three are handled, the layout being detected from the file
+rather than supplied. The national files \code{\link[=canstreet_download]{canstreet_download()}} fetches are
+the eight-digit kind.
 
-Coordinates are NAD27 UTM in a zone that is stated per map sheet, so a file
-can span zones. They are reprojected to EPSG:3347 (NAD83 / Statistics Canada
-Lambert), which is the projection the rest of this package works in, so that
-one file returns one geometry column.
+Coordinates are NAD27 UTM in a zone that is stated in the file heading. They
+are reprojected to EPSG:3347 (NAD83 / Statistics Canada Lambert), which is
+the projection the rest of this package works in, so that every file returns
+the same geometry column.
+
+This is the file as it is: \code{class} is the two-character feature type and
+sub-type and \code{type} the street type, uncombined and unlabelled. The
+harmonized, labelled view of a whole vintage is \code{\link[=get_road_network]{get_road_network()}}.
+
+Nineteen of the 1981 files carry feature headers whose street name was
+destroyed before the files were delivered. Their segments are returned with
+a missing \code{name}; geometry, class and address ranges are unaffected.
 
 The data are distributed under the Statistics Canada Open Licence
 (\url{https://www.statcan.gc.ca/en/reference/licence}).
@@ -44,6 +55,7 @@ The data are distributed under the Statistics Canada Open Licence
 \examples{
 \dontrun{
 amf <- canstreet_download(1976)
-segs <- read_amf(amf$path[1])
+files <- utils::unzip(amf$path[1], exdir = tempdir())
+segs <- read_amf(grep("VANCOUVE", files, value = TRUE)[1])
 }
 }

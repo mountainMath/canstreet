@@ -6,7 +6,7 @@
 \alias{canstreet-package}
 \title{canstreet: Download and Harmonize Historical Statistics Canada Road Network Files}
 \description{
-Downloads, caches and harmonizes the historical Statistics Canada road and street network files so that the evolution of the Canadian road network can be analysed reproducibly. The files span three distinct attribute schemas and three coordinate reference systems across their history; this package normalizes them into a single spatially indexed 'DuckDB' store that can be queried across vintages, and matches segments between vintages to build a temporally unified network in which each segment is tagged with the years it is present in. Data come from the Road Network File \url{https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X} and its Street Network File predecessors, distributed under the Statistics Canada Open Licence \url{https://www.statcan.gc.ca/en/reference/licence}.
+Downloads, caches and harmonizes the historical Statistics Canada road and street network files so that the evolution of the Canadian road network can be analysed reproducibly. The files span three distinct attribute schemas and three coordinate reference systems across their history; this package normalizes them into a single spatially indexed 'DuckDB' store that can be queried across vintages, and matches segments between vintages to build a temporally unified network in which each segment is tagged with the years it is present in. Data come from the Road Network File \url{https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X} and its Street Network File and Area Master File predecessors, distributed under the Statistics Canada Open Licence \url{https://www.statcan.gc.ca/en/reference/licence}.
 }
 \section{Getting started}{
 
@@ -18,13 +18,16 @@ Set a cache directory once with \code{\link[=set_canstreet_cache_path]{set_canst
 \section{Data source and attribution}{
 
 The data are the Statistics Canada Road Network File (catalogue 92-500-X)
-and its Street Network File predecessors, distributed under the Statistics
-Canada Open Licence (\url{https://www.statcan.gc.ca/en/reference/licence}).
-Vintages before 2005 are retrieved from the Abacus Data Network at the
-University of British Columbia, which mirrors the Statistics Canada
-releases. The licence asks that you cite the product and reference year, for
-example: "Adapted from Statistics Canada, Road Network File, 2021. This does
-not constitute an endorsement by Statistics Canada of this product."
+and its Street Network File and Area Master File predecessors, distributed
+under the Statistics Canada Open Licence
+(\url{https://www.statcan.gc.ca/en/reference/licence}). The 1991 and 1996
+vintages are retrieved from the Abacus Data Network at the University of
+British Columbia, which mirrors the Statistics Canada releases, and the
+1971 to 1986 Area Master Files, which Statistics Canada does not serve
+online, from MountainMath's own storage. The licence asks that you cite
+the product and reference year, for example: "Adapted from Statistics
+Canada, Road Network File, 2021. This does not constitute an endorsement by
+Statistics Canada of this product."
 }
 
 \seealso{

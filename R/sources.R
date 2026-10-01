@@ -1,13 +1,35 @@
 # The source manifest.
 #
-# Every URL, handle, file pattern and CRS in this file was verified against a
-# live request on 2026-08-28. The manifest is deliberately plain data: adding a
-# vintage -- including the pre-1991 files, if they can be sourced -- is an edit
-# to `cs_sources()` and nothing else.
+# Every Statistics Canada URL, Abacus handle, file pattern and CRS in this file
+# was verified against a live request on 2026-08-28. The manifest is
+# deliberately plain data: adding a vintage is an edit to `cs_sources()` and
+# nothing else.
 
 statcan_census_base <- "https://www12.statcan.gc.ca/census-recensement/"
 
 abacus_base <- "https://abacus.library.ubc.ca"
+
+# Statistics Canada does not serve the Area Master Files online. The national
+# set for 1971, 1976, 1981 and 1986 is hosted here as Statistics Canada
+# delivered it, one flat file per municipality, and redistributed under the
+# Statistics Canada Open Licence as one zip per census: the files untouched,
+# under their own names, with the record layouts, reference lists and the 1988
+# user guide that came with them in a `documentation` directory.
+# `data-raw/amf_archives.R` builds the zips from the delivery and uploads them.
+#
+# Abacus holds a British Columbia extract of 1976 and of 1981, which is what
+# this package read before the national files were to hand. They are the same
+# records in a different transcription (see `R/amf.R`) and `read_amf()` still
+# opens them, but the manifest no longer points there: a national file that
+# stopped at the Rockies in two of its years was not one series.
+mountainmath_base <-
+  "https://mountainmath.s3.ca-central-1.amazonaws.com/canstreet/"
+
+cs_amf_url <- function(vintage) {
+  paste0(mountainmath_base, "amf_", vintage, ".zip")
+}
+
+amf_vintages <- c(1971, 1976, 1981, 1986)
 
 # Statistics Canada serves the whole 2006-2025 series from two directories, but
 # neither the file prefix nor the path is stable across it:
@@ -89,17 +111,17 @@ statcan_vintages <- c(2001, 2005:2025)
 #'   \item{product}{`"AMF"` (Area Master File), `"SNF"` (Street Network File)
 #'     or `"RNF"` (Road Network File).}
 #'   \item{catalogue}{Statistics Canada catalogue number, where the release has one.}
-#'   \item{host}{`"statcan"` or `"abacus"`; selects the download backend.}
-#'   \item{resource}{A direct URL for `statcan`, a Dataverse persistent
-#'     identifier for `abacus`.}
+#'   \item{host}{`"statcan"`, `"abacus"` or `"mountainmath"`; selects the
+#'     download backend.}
+#'   \item{resource}{A direct URL for `statcan` and `mountainmath`, a Dataverse
+#'     persistent identifier for `abacus`.}
 #'   \item{file_pattern, file_exclude}{Case-insensitive regular expressions
-#'     selecting the datafiles to fetch out of an Abacus dataset. `NA` for
-#'     `statcan`, where `resource` already names one file.}
+#'     selecting the datafiles to fetch out of an Abacus dataset. `NA` for the
+#'     other hosts, where `resource` already names one file.}
 #'   \item{assembly}{`"single"` when the vintage is one national archive,
 #'     `"tiles"` when it must be assembled from per-area units.}
 #'   \item{archive}{Container format. `"exe"` is a Windows self-extracting
-#'     archive, which is a zip with a stub prepended and unzips normally;
-#'     `"none"` is a bare file, which is how the Area Master Files arrive.}
+#'     archive, which is a zip with a stub prepended and unzips normally.}
 #'   \item{schema_era}{Advisory grouping only. The attribute schema is *detected
 #'     from the columns actually present* at import (see `cs_harmonize_sql()`),
 #'     because it varies within these eras -- 1991 is upper-case with `ARC_ID`,
@@ -109,12 +131,11 @@ statcan_vintages <- c(2001, 2005:2025)
 #'     files carry a degenerate `GEOGCS["Unknown"]` projection string that `sf`
 #'     resolves to a missing CRS, so this value is assigned on import rather
 #'     than read from the `.prj`. For the Area Master Files it records the
-#'     datum only: their coordinates are projected, in a UTM zone that each map
-#'     sheet states for itself, so the working CRS is chosen per sheet by
+#'     datum only: their coordinates are projected, in a UTM zone that each
+#'     file states in its heading, so the working CRS is chosen per file by
 #'     `cs_amf_zone_crs()` and this column is not used to place them.}
-#'   \item{coverage}{`"national"`; `"urban"` where the release covers only the
-#'     larger urban areas; `"bc-urban"` for the two Area Master Files, which
-#'     were deposited for British Columbia alone.}
+#'   \item{coverage}{`"national"`, or `"urban"` where the release covers only
+#'     the larger urban areas.}
 #'   \item{notes}{Human-readable caveats, surfaced by
 #'     [list_road_network_vintages()].}
 #' }
@@ -148,26 +169,41 @@ cs_sources <- function() {
     catalogue = ifelse(statcan_vintages == 2001, "92F0157GIE", "92-500-X")
   )
 
+  amf <- tibble::tibble(
+    vintage = as.integer(amf_vintages),
+    product = "AMF",
+    catalogue = NA_character_,
+    host = "mountainmath",
+    resource = vapply(amf_vintages, cs_amf_url, character(1)),
+    file_pattern = NA_character_,
+    file_exclude = NA_character_,
+    assembly = "single",
+    archive = "zip",
+    schema_era = "amf",
+    crs = 4267L,
+    coverage = "urban",
+    notes = c(
+      paste("34 files covering 15 metropolitan areas in seven provinces,",
+            "Halifax to Vancouver. Flat files, not a GIS format: each is one",
+            "municipality or a few, as chains of nodes in NAD27 UTM, read by",
+            "`read_amf()`. Not served online by Statistics Canada;",
+            "redistributed under the Statistics Canada Open Licence with its",
+            "documentation."),
+      "99 files covering 33 metropolitan areas in nine provinces. As 1971.",
+      paste("135 files covering 39 metropolitan areas in nine provinces. As",
+            "1971, except that nineteen of the files -- all five of",
+            "Winnipeg's among them -- were delivered with their street names",
+            "destroyed, so 12% of this vintage's segments have a missing",
+            "`name`. Geometry, class and address ranges are intact."),
+      paste("194 files covering 54 metropolitan areas in nine provinces. As",
+            "1971, with the feature classification of the later Street",
+            "Network File: ramps, trails, proposed highways and divided",
+            "streets are told apart, where the earlier files say only that",
+            "an arc is a highway.")))
+
   abacus <- tibble::tribble(
     ~vintage, ~product, ~catalogue, ~resource, ~file_pattern, ~file_exclude,
     ~assembly, ~archive, ~schema_era, ~crs, ~coverage, ~notes,
-
-    1976L, "AMF", NA_character_, "hdl:11272.1/AB2/MESORS",
-    "[.]data$", NA_character_,
-    "tiles", "none", "amf", 4267L, "bc-urban",
-    paste("Two flat files, not an archive and not a GIS format:",
-          "`vancouver.data` is the Vancouver census metropolitan area and",
-          "`bc.data` the Victoria and Ioco-Anmore sheets. Coordinates are",
-          "NAD27 UTM in a zone stated per map sheet. Read by `read_amf()`;",
-          "no GDAL driver opens this format."),
-
-    1981L, "AMF", NA_character_, "hdl:11272.1/AB2/K0EZ55",
-    "[.]data$", NA_character_,
-    "tiles", "none", "amf", 4267L, "bc-urban",
-    paste("As 1976, but the EBCDIC original: the coordinates are packed",
-          "decimal and reach the deposit as Latin-1 mojibake. `bc.data`",
-          "covers Victoria, Kelowna, Kamloops and Prince George --",
-          "Kelowna in UTM zone 11, the rest in zone 10."),
 
     1991L, "SNF", NA_character_, "hdl:11272.1/AB2/2FCGQJ",
     "^net_.*[.]zip$", NA_character_,
@@ -195,6 +231,7 @@ cs_sources <- function() {
                "file_exclude", "assembly", "archive", "schema_era", "crs",
                "coverage", "notes")] |>
       dplyr::mutate(host = "abacus"),
+    amf,
     statcan
   )
 

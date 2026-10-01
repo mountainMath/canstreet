@@ -55,7 +55,7 @@ into their neighbours.}
 
 \item{roads_only}{Restrict each vintage to its road features, using that
 vintage's own vocabulary -- see \code{\link[=canstreet_road_classes]{canstreet_road_classes()}}. This matters
-most for 1976, 1981, 1991, 1996 and 2001: the Area Master Files and Street
+most for 1971 to 1996 and for 2001: the Area Master Files and Street
 Network Files are full topographic bases, and a third of their length is
 watercourses, railways, hydro lines, census boundaries and the outlines of
 parks and airports, while 2001 carries the boundary arcs of the census
@@ -115,7 +115,7 @@ each segment, so the rescue can be inspected or excluded.
 
 \section{What counts as a road}{
 The 1991 and 1996 Street Network Files are not road networks, and neither
-are the 1976 and 1981 Area Master Files. They carry watercourses, railways,
+are the 1971 to 1986 Area Master Files. They carry watercourses, railways,
 hydro lines, census-boundary arcs and the outlines of parks, golf courses and
 airports as arcs alongside the streets -- about a third of the 1996 file's
 160,000 km. 2001 has the same problem in a different form: it is the one year

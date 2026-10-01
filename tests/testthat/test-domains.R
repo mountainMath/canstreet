@@ -43,9 +43,21 @@ test_that("the vocabularies are per-vintage, not shared across the era", {
   expect_identical(cs_class_label(1976, "HN"), "Highway")
   expect_identical(cs_class_label(1981, "GB"), "Property boundary")
   expect_identical(cs_class_domain(1976), cs_class_domain(1981))
+  expect_identical(cs_class_domain(1971), cs_class_domain(1976))
   # `OB` is not a List A combination and `Z` contradicts the one it names, so
   # neither is labelled.
   expect_false(any(c("OB", "Z") %in% cs_class_domain(1976)$code))
+
+  # The 1986 file is List A in full: the Street Network File's vocabulary row
+  # for row, each code spelled with the two-character family in front.
+  d86 <- cs_class_domain(1986)
+  expect_identical(cs_domain_amf_1986_class()$label,
+                   cs_domain_snf_class()$label)
+  expect_identical(cs_class_label(1986, "HNMU"), "Highway multiple")
+  expect_identical(cs_class_label(1986, "WNCR"), cs_class_label(1991, "WCR"))
+  expect_identical(cs_class_label(1986, "HN"), cs_class_label(1991, "H"))
+  expect_false(anyDuplicated(d86$code) > 0)
+  expect_true(all(nchar(d86$code) %in% c(1L, 2L, 4L)))
 
   # And these have no published vocabulary at all.
   expect_null(cs_class_domain(2006))
@@ -66,7 +78,7 @@ test_that("canstreet_domains() reports what is stored", {
   expect_named(all, c("vintage", "domain", "code", "label"))
   expect_setequal(unique(all$domain), c("class", "rank"))
   expect_false(2006L %in% all$vintage)
-  expect_true(all(c(1976L, 1981L) %in% all$vintage))
+  expect_true(all(c(1971L, 1976L, 1981L, 1986L) %in% all$vintage))
 
   expect_identical(nrow(canstreet_domains(2006)), 0L)
   expect_setequal(unique(canstreet_domains(2016, domain = "class")$domain),

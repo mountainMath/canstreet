@@ -15,8 +15,8 @@ Description: Downloads, caches and harmonizes the historical Statistics Canada
     between vintages to build a temporally unified network in which each
     segment is tagged with the years it is present in. Data come from the
     Road Network File <https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X>
-    and its Street Network File predecessors, distributed under the Statistics
-    Canada Open Licence
+    and its Street Network File and Area Master File predecessors, distributed
+    under the Statistics Canada Open Licence
     <https://www.statcan.gc.ca/en/reference/licence>.
 License: MIT + file LICENSE
 Encoding: UTF-8
@@ -50,5 +50,5 @@ URL: https://github.com/mountainMath/canstreet, https://mountainmath.github.io/c
 BugReports: https://github.com/mountainMath/canstreet/issues
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0
 Roxygen: list(markdown = TRUE)

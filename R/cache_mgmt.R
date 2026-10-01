@@ -105,14 +105,7 @@ remove_canstreet_cache <- function(vintage, keep_raw = TRUE,
   if (file.exists(cs_db_path(cache_path))) {
     con <- cs_connect(cache_path, read_only = FALSE)
     dependent <- cs_builds_using(con, vintages)
-    for (b in dependent) {
-      for (t in c(cs_tnet_table_name(b), cs_tnet_src_table_name(b))) {
-        DBI::dbExecute(con, paste0("DROP TABLE IF EXISTS ",
-                                   DBI::dbQuoteIdentifier(con, t), ";"))
-      }
-      DBI::dbExecute(con, "DELETE FROM canstreet_builds WHERE build = ?;",
-                     params = list(b))
-    }
+    cs_builds_drop(con, dependent)
     for (v in vintages) {
       DBI::dbExecute(con, paste0(
         "DROP TABLE IF EXISTS ",

@@ -33,6 +33,17 @@ test_that("a vintage is only usable when table and schema version agree", {
   cs_meta_write(con, 2011, list(schema_version = 0L))
   expect_false(cs_db_has_vintage(con, 2011))
 
+  # So is one imported from a source the manifest has since replaced, which
+  # is how the British Columbia extracts of 1976 and 1981 give way to the
+  # national files. A cache that never recorded its source is taken at its
+  # word.
+  cs_meta_write(con, 2011, list(schema_version = cs_schema_version(),
+                                resource = cs_source(2011)$resource))
+  expect_true(cs_db_has_vintage(con, 2011))
+  cs_meta_write(con, 2011, list(resource = "hdl:11272.1/AB2/MESORS"))
+  expect_false(cs_db_has_vintage(con, 2011))
+  cs_meta_write(con, 2011, list(resource = cs_source(2011)$resource))
+
   # Metadata for a table that no longer exists is not reported either.
   cs_meta_write(con, 2016, list(schema_version = cs_schema_version()))
   expect_equal(cs_db_vintages(con), 2011L)
