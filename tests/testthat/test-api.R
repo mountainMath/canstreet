@@ -36,6 +36,41 @@ test_that("get_road_network returns a lazy table that computes in the database",
   expect_match(as.character(dbplyr::remote_query(x)), "rnf_2011")
 })
 
+test_that("the database locator names a file another connection can read", {
+  skip_if_no_duckdb_spatial()
+  cache <- local_fixture_db(2011, n = 5)
+
+  db <- get_road_network_database(2011, cache_path = cache)
+  expect_named(db, c("path", "tables", "crs", "sql"))
+  expect_true(file.exists(db$path))
+  expect_identical(basename(db$path), "canstreet.duckdb")
+  expect_identical(db$tables, c(`2011` = "rnf_2011"))
+  expect_identical(db$crs, "EPSG:3347")
+
+  # The query is the one get_road_network() runs, filters included.
+  bbox <- sf::st_bbox(c(xmin = -123.2, ymin = 49.1, xmax = -123.0,
+                        ymax = 49.3), crs = 4326)
+  filtered <- get_road_network_database(2011, within = bbox,
+                                        cache_path = cache)
+  expect_match(filtered$sql, "ST_Intersects")
+  expect_identical(
+    filtered$sql,
+    as.character(dbplyr::remote_query(
+      get_road_network(2011, within = bbox, cache_path = cache))))
+
+  # And it runs on a connection this package had no hand in: nothing in it
+  # leans on the temporary macros.
+  canstreet_disconnect(cache)
+  con <- DBI::dbConnect(duckdb::duckdb(db$path, read_only = TRUE))
+  withr::defer(DBI::dbDisconnect(con, shutdown = TRUE))
+  DBI::dbExecute(con, "LOAD spatial;")
+  n <- function(sql) {
+    DBI::dbGetQuery(con, paste0("SELECT count(*) AS n FROM (", sql, ") q"))$n
+  }
+  expect_equal(n(db$sql), 5)
+  expect_equal(n(filtered$sql), 5)
+})
+
 test_that("roads_only applies each vintage's own definition of a road", {
   skip_if_no_duckdb_spatial()
   cache <- local_fixture_db(2011, n = 5)

@@ -100,7 +100,8 @@ list_road_network_vintages <- function(
 #' @return A lazy [dplyr::tbl()] over the cached database.
 #'
 #' @seealso [collect_road_network()] to materialize the result as \pkg{sf},
-#'   [export_road_network()] to write GeoParquet.
+#'   [export_road_network()] to write GeoParquet,
+#'   [get_road_network_database()] for the database file itself.
 #'
 #' @examples
 #' \dontrun{
@@ -134,7 +135,92 @@ get_road_network <- function(vintage,
                              quiet = FALSE,
                              cache_path = canstreet_cache_path()) {
   vintages <- vapply(vintage, cs_check_vintage, integer(1))
+  con <- cs_ensure_vintages(vintages, refresh = refresh, quiet = quiet,
+                            cache_path = cache_path)
+  dplyr::tbl(con, dbplyr::sql(cs_road_network_sql(con, vintages, within,
+                                                  roads_only)))
+}
 
+#' Locate the database behind a road network query
+#'
+#' The cache is an ordinary 'DuckDB' file, so anything that speaks DuckDB can
+#' read it: the `duckdb` command line client, Python, QGIS, DBeaver. This takes
+#' the same arguments as [get_road_network()], downloads and imports the vintage
+#' on first use exactly as it does, and returns where the data went instead of
+#' a table over it -- the file, the tables in it, and the query
+#' [get_road_network()] would have run.
+#'
+#' Three things another tool needs to know. The `geom` column needs DuckDB's
+#' `spatial` extension (`INSTALL spatial; LOAD spatial;`). It is stored without
+#' a CRS tag, in the CRS named by `crs` -- EPSG:3347, in metres -- so reattach
+#' it on the way out, e.g. `ST_SetCRS(geom, 'EPSG:3347')`. And open the file
+#' read-only: this session keeps its own read-only connection open, which other
+#' read-only connections can share, while a tool that wants to write has to
+#' wait for [canstreet_disconnect()] and will block this package in turn.
+#'
+#' Each vintage is one table, named for its product and year, and the
+#' `segments` view stacks them all on the [canstreet_schema()] columns. A
+#' temporal build adds `tnet_<name>` and `tnet_<name>_src`; see
+#' [list_temporal_networks()].
+#'
+#' Source data are © Statistics Canada, distributed under the Statistics Canada
+#' Open Licence (<https://www.statcan.gc.ca/en/reference/licence>). Cite the
+#' product and reference year in anything you publish from it.
+#'
+#' @inheritParams get_road_network
+#' @param within Optional spatial filter, as [get_road_network()] takes it. It
+#'   does not change where the data is, only the `sql` returned.
+#' @param roads_only Restrict to road features, as [get_road_network()] does.
+#'   Likewise reflected in `sql` only: the tables hold each vintage whole.
+#'
+#' @return A list with `path`, the absolute path of the database file;
+#'   `tables`, the table holding each requested vintage, named by year; `crs`,
+#'   the CRS of the stored geometry; and `sql`, the query that returns what
+#'   [get_road_network()] returns for the same arguments.
+#'
+#' @seealso [export_road_network()] to hand the data over as GeoParquet
+#'   instead, [canstreet_disconnect()] to release this session's connection.
+#'
+#' @examples
+#' \dontrun{
+#' db <- get_road_network_database(2021)
+#' db$path
+#'
+#' # From R, without this package:
+#' con <- DBI::dbConnect(duckdb::duckdb(db$path, read_only = TRUE))
+#' DBI::dbExecute(con, "LOAD spatial;")
+#' DBI::dbGetQuery(con, paste("SELECT count(*) FROM", db$tables[["2021"]]))
+#'
+#' # Or from a shell: duckdb -readonly "<path>"
+#' }
+#' @export
+get_road_network_database <- function(vintage,
+                                      within = NULL,
+                                      roads_only = FALSE,
+                                      refresh = FALSE,
+                                      quiet = FALSE,
+                                      cache_path = canstreet_cache_path()) {
+  vintages <- vapply(vintage, cs_check_vintage, integer(1))
+  con <- cs_ensure_vintages(vintages, refresh = refresh, quiet = quiet,
+                            cache_path = cache_path)
+  tables <- vapply(vintages, cs_table_name, character(1))
+  names(tables) <- vintages
+  list(
+    path = normalizePath(cs_db_path(cache_path), winslash = "/"),
+    tables = tables,
+    crs = cs_storage_crs(),
+    sql = cs_road_network_sql(con, vintages, within, roads_only)
+  )
+}
+
+#' Import whatever is missing and return a read-only connection
+#'
+#' @param vintages Validated reference years.
+#' @param refresh,quiet,cache_path As in [get_road_network()].
+#' @return A read-only DuckDB connection with every vintage imported.
+#' @keywords internal
+#' @noRd
+cs_ensure_vintages <- function(vintages, refresh, quiet, cache_path) {
   # Import needs the write lock, so any cached read-only connection has to go
   # first; taking the write connection only when there is work to do keeps the
   # common case (everything already imported) lock-free.
@@ -152,8 +238,23 @@ get_road_network <- function(vintage,
     }
   }
 
-  con <- cs_connect(cache_path, read_only = TRUE)
+  cs_connect(cache_path, read_only = TRUE)
+}
 
+#' Build the query behind `get_road_network()`
+#'
+#' One definition, because [get_road_network_database()] hands the same
+#' statement to tools outside R. It therefore uses nothing a bare connection
+#' with the spatial extension lacks -- none of the temporary macros.
+#'
+#' @param con A DuckDB connection, for identifier quoting.
+#' @param vintages Validated reference years.
+#' @param within,roads_only As in [get_road_network()].
+#' @return A SQL string.
+#' @keywords internal
+#' @noRd
+cs_road_network_sql <- function(con, vintages, within = NULL,
+                                roads_only = FALSE) {
   # A single vintage is read from its own table so that a spatial filter can
   # use that table's R-tree; several are read through the union view.
   if (length(vintages) == 1L) {
@@ -176,10 +277,8 @@ get_road_network <- function(vintage,
                                         statuses = statuses))
   }
 
-  sql <- paste0("SELECT * FROM ", from,
-                if (length(where)) paste0(" WHERE ", paste(where,
-                                                           collapse = " AND ")))
-  dplyr::tbl(con, dbplyr::sql(sql))
+  paste0("SELECT * FROM ", from,
+         if (length(where)) paste0(" WHERE ", paste(where, collapse = " AND ")))
 }
 
 #' Build the SQL for a spatial filter

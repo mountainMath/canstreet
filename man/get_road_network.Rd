@@ -103,5 +103,6 @@ get_road_network(1996, roads_only = TRUE) |>
 }
 \seealso{
 \code{\link[=collect_road_network]{collect_road_network()}} to materialize the result as \pkg{sf},
-\code{\link[=export_road_network]{export_road_network()}} to write GeoParquet.
+\code{\link[=export_road_network]{export_road_network()}} to write GeoParquet,
+\code{\link[=get_road_network_database]{get_road_network_database()}} for the database file itself.
 }

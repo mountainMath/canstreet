@@ -12,7 +12,7 @@ The package provides a uniform base for this to enable reproducible and collabor
 
 The package provides basic functionality:
 
-* Download and cache the historical road/street network files from Statistics Canada.
+* Download and cache the historical road/street network files from Statistics Canada or from a custom hosted archive for older data that's only available via EFT.
 * Filter the features into streets and roads, boundaries, and other features.
 * Identify common road/street segments across different years even when geocoding accuracy has changed over time.
 * Create a temporally unified street network dataset that tags segments according to the years they were present in the network.
@@ -38,7 +38,7 @@ set_canstreet_cache_path("~/data/canstreet", install = TRUE)
 
 `install = TRUE` writes `CANSTREET_CACHE_PATH` to your `.Renviron` so it applies
 to every future session. You can also set the `canstreet.cache_path` option, or
-the environment variable directly; `canstreet_cache_path()` reports what is in
+the environment variable directly, `canstreet_cache_path()` reports what is in
 effect, and `show_canstreet_cache_path()` says where the setting came from.
 
 ## Documentation
@@ -55,7 +55,7 @@ library(dplyr)
 # What is available, and what is already cached.
 list_road_network_vintages()
 
-# First call downloads and imports; later calls are instant.
+# First call downloads and imports, later calls are instant.
 roads <- get_road_network(2021)
 ```
 
@@ -91,7 +91,8 @@ get_road_network(c(1996, 2006, 2021)) |>
 ```
 
 Use `export_road_network()` to write GeoParquet for use from Python, QGIS or
-DuckDB, `list_canstreet_cache()` to see what the cache holds, and
+DuckDB, or `get_road_network_database()` to point another tool at the DuckDB
+file itself, `list_canstreet_cache()` to see what the cache holds, and
 `remove_canstreet_cache()` to evict a vintage. `vignette("canstreet")` walks
 through all of this against real files.
 
@@ -122,10 +123,11 @@ calgary |>
 #> ...
 ```
 
-`year_key` is the set of years as a string, for grouping; `years` is the same
-set as a list column, for `list_contains(years, 1996)`; `n_years`,
+`year_key` is the set of years as a string, for grouping, `years` is the same
+set as a list column, for `list_contains(years, 1996)`, `n_years`,
 `first_year` and `last_year` fall out of it. Roads that have gone are
-`last_year < 2021`; roads that are new are `first_year > 1996`.
+`last_year < 2021`, roads that are new are `first_year > 1996`.
+
 
 Three things the design commits to.
 

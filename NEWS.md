@@ -27,6 +27,9 @@ matches segments across years into a temporally unified network.
   `roads_only` keeps each vintage's own road classes.
   `collect_road_network()` brings a result into R as `sf`, and
   `export_road_network()` writes it to a file.
+* `get_road_network_database()` takes the same arguments and returns where the
+  data is instead -- the DuckDB file, the tables in it and the equivalent
+  query -- for reading the store from another tool.
 * `class` and `rank` carry the published labels of each vintage's own guide.
   `canstreet_domains()` returns the vocabularies, `canstreet_road_classes()`
   says which classes count as road in which vintage, and `canstreet_schema()`
