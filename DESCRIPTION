@@ -1,7 +1,7 @@
 Package: canstreet
 Type: Package
 Title: Download and Harmonize Historical Statistics Canada Road Network Files
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: c(
     person("Jens", "von Bergmann", email = "jens@mountainmath.ca",
            role = c("aut", "cre"), comment = "creator and maintainer"),
