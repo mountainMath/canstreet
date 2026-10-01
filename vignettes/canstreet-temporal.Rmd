@@ -30,7 +30,7 @@ library(ggplot2)
 
 `within` takes any `sf`, `sfc` or `bbox` object, and the same polygon is stamped
 across every year: Statistics Canada reuses `CSDUID` and `CMAUID` across
-boundary revisions, and the 1996 and 2006 files carry no region columns at all.
+boundary revisions, and the files before 2011 carry no region columns at all.
 Any source of a polygon will do --- here is the 2021 Calgary CMA from
 `cancensus`, which needs no API key for geographies:
 
@@ -54,25 +54,27 @@ downloaded first. `NULL` uses whatever the cache holds.
 
 
 ``` r
+vints <- c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016, 2021)
+
 calgary <- build_temporal_network(
-  "calgary", c(1996, 2001, 2006, 2011, 2016, 2021),
-  within = cma, region_note = "2021 CMA boundary, Calgary (825)")
+  "calgary", vints, within = cma,
+  region_note = "2021 CMA boundary, Calgary (825)")
 
 calgary
 #> # A query:  ?? x 33
-#> # Database: DuckDB 1.5.4 [jens@Darwin 25.6.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
-#>    segment_id spine_vintage spine_id spine_piece spine_lo spine_hi years    
-#>         <dbl>         <int> <chr>          <int>    <dbl>    <dbl> <list>   
-#>  1          1          1996 125191             1        0        1 <int [1]>
-#>  2          2          1996 125191             2        0        1 <int [1]>
-#>  3          3          1996 125191             3        0        1 <int [1]>
-#>  4          4          1996 125191             4        0        1 <int [1]>
-#>  5          5          1996 125235             1        0        1 <int [1]>
-#>  6          6          1996 125722             1        0        1 <int [1]>
-#>  7          7          1996 126452             1        0        1 <int [1]>
-#>  8          8          1996 126452             2        0        1 <int [1]>
-#>  9          9          1996 126452             3        0        1 <int [1]>
-#> 10         10          1996 126945             1        0        1 <int [1]>
+#> # Database: DuckDB 1.5.6 [jens@Darwin 27.0.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
+#>    segment_id spine_vintage spine_id         spine_piece spine_lo spine_hi years
+#>         <dbl>         <int> <chr>                  <int>    <dbl>    <dbl> <lis>
+#>  1          1          1971 01-4835-0616-00…           1        0        1 <int>
+#>  2          2          1971 01-4835-0616-01…           1        0        1 <int>
+#>  3          3          1971 01-4835-0616-01…           2        0        1 <int>
+#>  4          4          1971 01-4835-0616-01…           1        0        1 <int>
+#>  5          5          1971 01-4835-0616-01…           1        0        1 <int>
+#>  6          6          1971 01-4835-0616-01…           1        0        1 <int>
+#>  7          7          1971 01-4835-0616-05…           1        0        1 <int>
+#>  8          8          1971 01-4835-0616-05…           1        0        1 <int>
+#>  9          9          1971 01-4835-0616-07…           1        0        1 <int>
+#> 10         10          1971 01-4835-0616-07…           1        0        1 <int>
 #> # ℹ more rows
 #> # ℹ 26 more variables: year_key <chr>, n_years <int>, first_year <int>,
 #> #   last_year <int>, source_id <chr>, name <chr>, type <chr>, dir <chr>,
@@ -81,6 +83,11 @@ calgary
 #> #   csdtype_l <chr>, csdtype_r <chr>, cmauid_l <chr>, cmauid_r <chr>,
 #> #   pruid_l <chr>, pruid_r <chr>, len_m <dbl>, geom <list>
 ```
+
+Building over the Area Master Files warns once for each of their four years,
+1971 to 1986, that same-named arcs are systematically displaced; the calibration
+section below comes back to it. A build already in the cache is returned as it
+stands, without rebuilding or warning again, and `refresh = TRUE` forces one.
 
 The result is a lazy table like any other in this package, so it collects with
 `collect_road_network()` and exports with `export_road_network()`.
@@ -97,20 +104,20 @@ calgary |>
   summarize(km = round(sum(len_m, na.rm = TRUE) / 1000, 1)) |>
   arrange(desc(km)) |>
   collect()
-#> # A tibble: 50 × 2
-#>    year_key                          km
-#>    <chr>                          <dbl>
-#>  1 1996|2001|2006|2011|2016|2021 4618. 
-#>  2 2001|2006|2011|2016|2021      3823. 
-#>  3 2016|2021                     1074. 
-#>  4 2006|2011|2016|2021            924. 
-#>  5 2001|2006|2011                 533. 
-#>  6 2011|2016|2021                 499. 
-#>  7 2021                           414. 
-#>  8 2001                            71  
-#>  9 1996                            55.8
-#> 10 2006|2011                       45.9
-#> # ℹ 40 more rows
+#> # A tibble: 356 × 2
+#>    year_key                                                  km
+#>    <chr>                                                  <dbl>
+#>  1 2001|2006|2011|2016|2021                               3760.
+#>  2 1971|1976|1981|1986|1991|1996|2001|2006|2011|2016|2021 2255 
+#>  3 2016|2021                                              1056.
+#>  4 2006|2011|2016|2021                                     919.
+#>  5 2001|2006|2011                                          530.
+#>  6 1981|1986|1991|1996|2001|2006|2011|2016|2021            509.
+#>  7 1976|1981|1986|1991|1996|2001|2006|2011|2016|2021       494 
+#>  8 2011|2016|2021                                          494.
+#>  9 1991|1996|2001|2006|2011|2016|2021                      488.
+#> 10 1996|2001|2006|2011|2016|2021                           444.
+#> # ℹ 346 more rows
 ```
 
 `years` is the same set as a list column, for how much road existed in a given
@@ -118,27 +125,32 @@ year:
 
 
 ``` r
-vints <- c(1996, 2001, 2006, 2011, 2016, 2021)
-
 tibble::tibble(year = vints, km = round(vapply(vints, function(y) {
   calgary |>
     filter(list_contains(years, y)) |>
     summarize(km = sum(len_m, na.rm = TRUE) / 1000) |>
     pull(km)
 }, numeric(1)), 1))
-#> # A tibble: 6 × 2
-#>    year     km
-#>   <dbl>  <dbl>
-#> 1  1996  4864.
-#> 2  2001  9255.
-#> 3  2006 10145.
-#> 4  2011 10643.
-#> 5  2016 11088.
-#> 6  2021 11505.
+#> # A tibble: 11 × 2
+#>     year     km
+#>    <dbl>  <dbl>
+#>  1  1971  2479.
+#>  2  1976  2948.
+#>  3  1981  3492.
+#>  4  1986  3848.
+#>  5  1991  4421.
+#>  6  1996  4864.
+#>  7  2001  9256 
+#>  8  2006 10146.
+#>  9  2011 10645.
+#> 10  2016 11088.
+#> 11  2021 11505.
 ```
 
-1996 is urban areas only and 2001 is the first national file, so the jump
-between them is mostly coverage, not road being built.
+Everything up to 1996 is urban areas only and 2001 is the first national file,
+so the jump between them is mostly coverage, not road being built. The steadier
+climb before it is a statement about the files as well: each holds the urban
+area as that census drew it.
 
 `first_year`, `last_year` and `n_years` fall out of the year set:
 
@@ -154,7 +166,7 @@ calgary |>
 #> # A tibble: 1 × 2
 #>   new_since_2006_km retired_km
 #>               <dbl>      <dbl>
-#> 1             2032.       892.
+#> 1             2008.      1025.
 ```
 
 ## Newer geometry wins
@@ -169,15 +181,20 @@ calgary |>
   count(spine_vintage, last_year) |>
   arrange(spine_vintage) |>
   collect()
-#> # A tibble: 6 × 3
-#>   spine_vintage last_year     n
-#>           <int>     <int> <dbl>
-#> 1          1996      1996   371
-#> 2          2001      2001   296
-#> 3          2006      2006   201
-#> 4          2011      2011  1487
-#> 5          2016      2016   154
-#> 6          2021      2021 73153
+#> # A tibble: 11 × 3
+#>    spine_vintage last_year     n
+#>            <int>     <int> <dbl>
+#>  1          1971      1971   213
+#>  2          1976      1976   212
+#>  3          1981      1981   180
+#>  4          1986      1986   332
+#>  5          1991      1991   203
+#>  6          1996      1996   388
+#>  7          2001      2001   313
+#>  8          2006      2006   214
+#>  9          2011      2011  1543
+#> 10          2016      2016   159
+#> 11          2021      2021 77475
 ```
 
 ## Segments are cut where the years disagree
@@ -192,21 +209,26 @@ get_road_network(vints, within = cma) |>
   count(vintage) |>
   arrange(vintage) |>
   collect()
-#> # A tibble: 6 × 2
-#>   vintage     n
-#>     <int> <dbl>
-#> 1    1996 27458
-#> 2    2001 33782
-#> 3    2006 35426
-#> 4    2011 37960
-#> 5    2016 63400
-#> 6    2021 68101
+#> # A tibble: 11 × 2
+#>    vintage     n
+#>      <int> <dbl>
+#>  1    1971 16013
+#>  2    1976 19661
+#>  3    1981 23889
+#>  4    1986 32603
+#>  5    1991 24637
+#>  6    1996 27458
+#>  7    2001 33782
+#>  8    2006 35426
+#>  9    2011 37960
+#> 10    2016 63400
+#> 11    2021 68101
 
 calgary |> summarize(harmonized_segments = n()) |> collect()
 #> # A tibble: 1 × 1
 #>   harmonized_segments
 #>                 <dbl>
-#> 1               75662
+#> 1               81232
 ```
 
 ## How the tolerance was chosen
@@ -217,16 +239,21 @@ neighbouring road instead.
 
 
 ``` r
-temporal_network_calibration("calgary")
-#> # A tibble: 5 × 10
-#>   vintage tolerance_m n_pairs   recall_p50  recall_p90 disagree_10 disagree_25
-#>     <int>       <dbl>   <int>        <dbl>       <dbl>       <dbl>       <dbl>
-#> 1    2016          10   58101  0.000000798  0.00000191      0.0101      0.0105
-#> 2    2011          40   36309 13.5         48.9             0.123       0.125 
-#> 3    2006          40   33741 13.1         45.9             0.121       0.123 
-#> 4    2001          40   27323 12.1         41.7             0.115       0.118 
-#> 5    1996          39   23094 12.3         38.3             0.131       0.123 
-#> # ℹ 3 more variables: disagree_40 <dbl>, dx <dbl>, dy <dbl>
+temporal_network_calibration("calgary") |>
+  select(vintage, tolerance_m, n_pairs, recall_p50, disagree_25, dx, dy)
+#> # A tibble: 10 × 7
+#>    vintage tolerance_m n_pairs   recall_p50 disagree_25     dx      dy
+#>      <int>       <dbl>   <int>        <dbl>       <dbl>  <dbl>   <dbl>
+#>  1    2016          10   58101  0.000000798      0.0105 0.0013 -0.0176
+#>  2    2011          40   36309 13.5              0.125  0.351  -3.85  
+#>  3    2006          40   33741 13.1              0.123  0.577  -3.40  
+#>  4    2001          40   27323 12.1              0.118  0.761  -2.77  
+#>  5    1996          39   23094 12.3              0.123  1.44    5.08  
+#>  6    1991          35   20785 11.8              0.114  1.77    5.93  
+#>  7    1986          40   23048 16.8              0.173  6.92    8.48  
+#>  8    1981          40   20164 16.6              0.168  6.89    9.17  
+#>  9    1976          40   16613 17.3              0.188  7.11    9.34  
+#> 10    1971          40   13512 19.9              0.233  7.67   12.9
 ```
 
 `recall_p50` is the positional disagreement against 2021; `disagree_25` the
@@ -234,6 +261,16 @@ share of arcs whose nearest arc within 25 m carries a different name. The
 tolerance is set where the second is still flat, and `tolerance =` overrides it
 as a number or a vector named by year. 2016 clamps to the lower bound because
 it shares 2021's base geometry.
+
+`dx` and `dy` are the mean offset to the same-named 2021 arc, in metres along
+the axes of the storage projection, and they are what the build warned about.
+A few metres either way is ordinary. The four Area Master File years sit a
+steady 11 to 15 m off, all in the same direction, which is a difference in
+registration rather than noise. The matcher does not correct a shift, it absorbs
+it --- those years calibrate to the 40 m ceiling, with `disagree_25` well above
+the later files' --- so treat a difference at that scale in 1971 to 1986 as
+unresolved. It is Calgary's result, not the product's: Vancouver's Area Master
+Files register as well as any file before 2011 (`vignette("canstreet-vancouver")`).
 
 ## The matching, exposed
 
@@ -247,27 +284,27 @@ get_temporal_network_sources("calgary") |>
   count(vintage, match_kind) |>
   arrange(vintage, desc(n)) |>
   collect()
-#> # A tibble: 21 × 3
+#> # A tibble: 41 × 3
 #>    vintage match_kind        n
 #>      <int> <chr>         <dbl>
-#>  1    1996 geometry+name 25912
-#>  2    1996 name_rescue    6607
-#>  3    1996 geometry       6475
-#>  4    1996 spine           371
-#>  5    2001 geometry+name 32491
-#>  6    2001 geometry       9761
-#>  7    2001 name_rescue    8972
-#>  8    2001 spine           296
-#>  9    2006 geometry+name 38875
-#> 10    2006 name_rescue   12373
-#> # ℹ 11 more rows
+#>  1    1971 geometry+name 12015
+#>  2    1971 geometry       5537
+#>  3    1971 name_rescue    2855
+#>  4    1971 spine           213
+#>  5    1976 geometry+name 15355
+#>  6    1976 geometry       6159
+#>  7    1976 name_rescue    3006
+#>  8    1976 spine           212
+#>  9    1981 geometry+name 18413
+#> 10    1981 geometry       7640
+#> # ℹ 31 more rows
 ```
 
 `spine` is the year the geometry came from; `geometry` and `geometry+name` are
 close approaches that also agree on direction. `name_rescue` is the second
 rule, for the long rural and highway arcs an older file draws as a chord
 hundreds of metres off the modern curve --- without it Calgary reports some
-1,180 km of spurious retirement. It is recorded rather than hidden, so a
+1,180 km of its 2006 road as retired. It is recorded rather than hidden, so a
 stricter analysis can drop it:
 
 
@@ -281,35 +318,51 @@ get_temporal_network_sources("calgary") |>
 #> # A tibble: 1 × 2
 #>   rescued total
 #>     <dbl> <dbl>
-#> 1   12373 58262
+#> 1   12965 62345
 ```
-The harmonized network, coloured by the year each segment first appears:
+
+## The map
+
+The harmonized network, coloured by the year each segment first appears. Most of
+the CMA's area is rural grid, so the maps here are framed on the City of Calgary
+by handing its bounding box to `coord_sf()`:
 
 
 ``` r
+calgary_crs <- mountainmathHelpers::lambert_conformal_conic_at(cma)
+
+frame <- cancensus::get_statcan_geographies("2021", level = "CSD") |>
+  filter(CSDUID == "4806016") |>
+  sf::st_transform(calgary_crs) |>
+  sf::st_bbox()
+#> Reading geographic data from local cache.
+
 colours <- c("grey40", viridis::viridis(length(vints) - 1, option = "turbo",
                                         direction = -1, begin = 0.12, end = 0.92))
 
 get_temporal_network("calgary") |>
   filter(list_contains(years, 2021L)) |>
-  collect_road_network() %>%
-  sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
-  ggplot(aes(colour=factor(first_year))) +
-  geom_sf(linewidth=0.1) +
+  collect_road_network() |>
+  sf::st_transform(calgary_crs) |>
+  ggplot(aes(colour = factor(first_year))) +
+  geom_sf(linewidth = 0.15) +
   scale_colour_manual(values = colours) +
-  labs(title = "Calgary CMA road network by vintage",
-       colour="First year\nroad appears\nin data",
-       caption="StatCan Road/Street network files") +
-  guides(colour=guide_legend(override.aes=list(linewidth=1))) +
-  coord_sf(datum=NA) 
+  labs(title = "Calgary road network by vintage",
+       colour = "First year\nroad appears\nin data",
+       caption = "StatCan Area Master, Street Network and Road Network Files") +
+  guides(colour = guide_legend(override.aes = list(linewidth = 1))) +
+  coord_sf(datum = NA, xlim = frame[c("xmin", "xmax")],
+           ylim = frame[c("ymin", "ymax")])
 ```
 
 <div class="figure">
-<img src="canstreet-temporal-first-year-map-1.png" alt="Calgary CMA road network coloured by the first vintage each segment appears in" width="100%" />
+<img src="canstreet-temporal-first-year-map-1.png" alt="City of Calgary road network coloured by the first vintage each segment appears in, 1971 to 2021" width="100%" />
 <p class="caption">plot of chunk first-year-map</p>
 </div>
 
-
+The grey core is what the 1971 file held and the rings around it are the urban
+files following the city outward to 1996; the green grid at the edges of the
+frame is 2001 going national.
 
 ## What actually disappeared
 
@@ -322,7 +375,7 @@ retired <- get_temporal_network("calgary") |>
   collect_road_network()
 
 sum(retired$len_m) / 1000
-#> [1] 715.5955
+#> [1] 713.3031
 ```
 
 
@@ -337,33 +390,37 @@ retired |>
 #> # A tibble: 10 × 2
 #>    name                   km
 #>    <chr>               <dbl>
-#>  1 (unnamed)          442.  
+#>  1 (unnamed)          441.  
 #>  2 Township Road 261A   7.21
 #>  3 Range Road 53        5.76
 #>  4 Range Road 33        5.56
 #>  5 210                  5.5 
-#>  6 68                   5.48
+#>  6 68                   5.46
 #>  7 112                  5.21
 #>  8 Township Road 232A   4.47
 #>  9 Township Road 260    4.38
 #> 10 56                   4.32
 ```
 
+Most of those 713 km lie outside the city, on the rural grid --- about 150 km
+are inside the city boundary. The same frame as before:
+
 
 ``` r
 get_temporal_network("calgary") |>
   filter(list_contains(years, 2021L)) |>
-  collect_road_network() %>%
-  sf::st_transform(mountainmathHelpers::lambert_conformal_conic_at(.)) |>
+  collect_road_network() |>
+  sf::st_transform(calgary_crs) |>
   ggplot() +
-  geom_sf(fill = "grey85", color = "black", linewidth=0.1) +
-  geom_sf(data = retired, color = "firebrick", linewidth = 0.3) +
-  labs(title = "Calgary CMA: road present in 2006, gone by 2021") +
-  coord_sf(datum=NA)
+  geom_sf(colour = "grey60", linewidth = 0.1) +
+  geom_sf(data = retired, colour = "firebrick", linewidth = 0.4) +
+  labs(title = "Calgary: road present in 2006, gone by 2021") +
+  coord_sf(datum = NA, xlim = frame[c("xmin", "xmax")],
+           ylim = frame[c("ymin", "ymax")])
 ```
 
 <div class="figure">
-<img src="canstreet-temporal-map-1.png" alt="Roads present in 2006 and gone by 2021, over the Calgary CMA" width="100%" />
+<img src="canstreet-temporal-map-1.png" alt="Roads present in 2006 and gone by 2021, over the City of Calgary" width="100%" />
 <p class="caption">plot of chunk map</p>
 </div>
 
@@ -386,7 +443,7 @@ gap_km <- sum(by_key$km[by_key$n_years < expected])
 
 c(gap_km = round(gap_km, 1), share = round(gap_km / sum(by_key$km), 4))
 #>   gap_km    share 
-#> 158.0000   0.0127
+#> 359.4000   0.0287
 ```
 
 ## Regions move under the roads
@@ -414,7 +471,7 @@ temporal_network_region_drift("calgary") |>
 #> # ℹ 2 more variables: n_segments <dbl>, km <dbl>
 ```
 
-Only years carrying the attribute contribute; 1996, 2001 and 2006 have none.
+Only years carrying the attribute contribute, and nothing before 2011 does.
 
 ## Builds in the cache
 
@@ -425,8 +482,8 @@ list_temporal_networks() |>
 #> # A tibble: 2 × 6
 #>   name      vintages                       n_segments total_km regional built_at
 #>   <chr>     <chr>                               <int>    <dbl> <lgl>    <chr>   
-#> 1 calgary   1996,2001,2006,2011,2016,2021       75662   12397. TRUE     2026-08…
-#> 2 vancouver 1976,1981,1991,1996,2001,2006…      85044   11365. TRUE     2026-08…
+#> 1 calgary   1971,1976,1981,1986,1991,1996…      81232   12529. TRUE     2026-10…
+#> 2 vancouver 1971,1976,1981,1986,1991,1996…      87277   11379. TRUE     2026-10…
 ```
 
 A build is a pair of tables beside the vintages, so `remove_temporal_network()`

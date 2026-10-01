@@ -162,14 +162,14 @@ Cochrane.
 The years are yours to pick: any two or more vintages in any spacing, `NULL` for
 everything the cache already holds, and a second build under another name can
 use a different set. `vignette("canstreet-temporal")` works the Calgary pilot
-through end to end, and `vignette("canstreet-vancouver")` builds a
-nine-vintage series over the Vancouver CMA -- 1976 to 2021, four file formats --
-to show what a segment's first year does and does not mean.
+through end to end, and `vignette("canstreet-vancouver")` builds an
+eleven-vintage series over the Vancouver CMA -- 1971 to 2021, four file formats
+-- to show what a segment's first year does and does not mean.
 
 The crosswalk records the name each year's own file gave a segment, so street
 renaming is readable from a finished build. Most of the churn is spelling rather
 than naming, and `vignette("canstreet-renames")` peels those layers off over the
-City of Vancouver until what is left is renaming -- 45 km of it over forty-five
+City of Vancouver until what is left is renaming -- 42 km of it over fifty
 years, among it Kent Avenue splitting into East and West between the 2011 and
 2016 files.
 

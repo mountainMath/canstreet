@@ -43,10 +43,10 @@ list_road_network_vintages() |>
 #> # A tibble: 28 × 5
 #>    vintage product coverage source_crs imported
 #>      <int> <chr>   <chr>    <chr>      <lgl>   
-#>  1    1971 AMF     urban    EPSG:4267  FALSE   
+#>  1    1971 AMF     urban    EPSG:4267  TRUE    
 #>  2    1976 AMF     urban    EPSG:4267  TRUE    
 #>  3    1981 AMF     urban    EPSG:4267  TRUE    
-#>  4    1986 AMF     urban    EPSG:4267  FALSE   
+#>  4    1986 AMF     urban    EPSG:4267  TRUE    
 #>  5    1991 SNF     urban    EPSG:4267  TRUE    
 #>  6    1996 SNF     urban    EPSG:4267  TRUE    
 #>  7    2001 RNF     national EPSG:4269  TRUE    
@@ -179,21 +179,37 @@ Several years at once stack into one table:
 
 
 ``` r
-get_road_network(c(1996, 2006, 2021)) |>
+get_road_network(c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016,
+                   2021)) |>
   group_by(vintage) |>
   summarize(segments = n(), km = round(sum(len_m, na.rm = TRUE) / 1000)) |>
   arrange(vintage) |>
   collect()
-#> # A tibble: 3 × 3
-#>   vintage segments      km
-#>     <int>    <dbl>   <dbl>
-#> 1    1996   629574  167238
-#> 2    2006  1869564 1326099
-#> 3    2021  2242117 1170167
+#> # A tibble: 11 × 3
+#>    vintage segments      km
+#>      <int>    <dbl>   <dbl>
+#>  1    1971   215399   31882
+#>  2    1976   431844   65709
+#>  3    1981   529158   80100
+#>  4    1986   909065  135232
+#>  5    1991   599625  160778
+#>  6    1996   629574  167238
+#>  7    2001  2053112 1736503
+#>  8    2006  1869564 1326099
+#>  9    2011  1973932 1326662
+#> 10    2016  2163058 1157951
+#> 11    2021  2242117 1170167
 ```
 
-1996 is urban areas only. The 2006–2021 drop is in the source data, not the
-import: 2006 carries far more very long arcs, which later releases split,
+Nothing before 2001 is national, and the Area Master Files grow mostly by
+covering more places --- 34 municipal files in 1971, 194 in 1986 --- so the rise
+to 1996 is coverage before it is road. Segment counts do not compare across
+products either: 1986 holds more segments than 1991 over fewer kilometres,
+because an Area Master File segment is a single block face. And not every
+segment is a road: over a third of 1986's arcs are shorelines, boundaries and
+railways, and 2001's extra 400,000 km is census boundary topology.
+`roads_only = TRUE` drops both. The 2006–2021 drop is in the source data, not
+the import: 2006 carries far more very long arcs, which later releases split,
 reclassified or dropped.
 
 
@@ -259,18 +275,20 @@ get_road_network(2021, within = bbox) |>
 
 ``` r
 list_canstreet_cache()
-#> # A tibble: 9 × 6
-#>   vintage n_segments n_archives raw_mb imported_at              package_version
-#>     <int>      <int>      <int>  <dbl> <chr>                    <chr>          
-#> 1    1976     431844          1   25.6 2026-10-01T14:07:02-0700 0.0.0.9000     
-#> 2    1981     529158          1   29.9 2026-10-01T14:07:28-0700 0.0.0.9000     
-#> 3    1991     599625         51   72.5 2026-08-29T12:49:40-0700 0.0.0.9000     
-#> 4    1996     629574         50   70.5 2026-08-29T12:46:01-0700 0.0.0.9000     
-#> 5    2001    2053112          1  250   2026-08-29T11:15:39-0700 0.0.0.9000     
-#> 6    2006    1869564          1  219.  2026-08-28T18:57:14-0700 0.0.0.9000     
-#> 7    2011    1973932          1  334.  2026-08-28T18:57:40-0700 0.0.0.9000     
-#> 8    2016    2163058          1  327.  2026-08-28T18:58:07-0700 0.0.0.9000     
-#> 9    2021    2242117          1  310.  2026-08-28T18:58:34-0700 0.0.0.9000
+#> # A tibble: 11 × 6
+#>    vintage n_segments n_archives raw_mb imported_at              package_version
+#>      <int>      <int>      <int>  <dbl> <chr>                    <chr>          
+#>  1    1971     215399          1   10.2 2026-10-01T14:26:44-0700 0.0.1          
+#>  2    1976     431844          1   17.4 2026-10-01T14:07:02-0700 0.0.0.9000     
+#>  3    1981     529158          1   19.7 2026-10-01T14:07:28-0700 0.0.0.9000     
+#>  4    1986     909065          1   27.7 2026-10-01T14:27:28-0700 0.0.1          
+#>  5    1991     599625         51   72.5 2026-08-29T12:49:40-0700 0.0.0.9000     
+#>  6    1996     629574         50   70.5 2026-08-29T12:46:01-0700 0.0.0.9000     
+#>  7    2001    2053112          1  250   2026-08-29T11:15:39-0700 0.0.0.9000     
+#>  8    2006    1869564          1  219.  2026-08-28T18:57:14-0700 0.0.0.9000     
+#>  9    2011    1973932          1  334.  2026-08-28T18:57:40-0700 0.0.0.9000     
+#> 10    2016    2163058          1  327.  2026-08-28T18:58:07-0700 0.0.0.9000     
+#> 11    2021    2242117          1  310.  2026-08-28T18:58:34-0700 0.0.0.9000
 ```
 
 `remove_canstreet_cache(vintage)` drops a vintage's table and keeps its

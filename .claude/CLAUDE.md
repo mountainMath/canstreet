@@ -70,7 +70,7 @@ Beyond the code:
   restate it in module comments.
 - `vignettes.orig/*.Rmd` — the analyses worked end to end, with their numbers: `canstreet.Rmd`
   (getting started), `canstreet-temporal.Rmd` (a build explained), `canstreet-vancouver.Rmd`
-  (45 years over one CMA), `canstreet-renames.Rmd` (classifying name changes).
+  (50 years over one CMA), `canstreet-renames.Rmd` (classifying name changes).
 - `data-raw/amf_archives.R` — builds the four hosted Area Master File zips from the Statistics
   Canada delivery and uploads them to the S3 location the manifest reads.
 - `.claude/notes/corpus-facts.md` — measured numbers: per-vintage counts, what the road filter

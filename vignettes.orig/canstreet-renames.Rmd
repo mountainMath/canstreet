@@ -31,8 +31,8 @@ library(ggplot2)
 Build over the CMA and read over the city. The build needs the wider region ---
 sources are staged against the area buffered outward, so a road at the city
 limit still has its counterpart to match against --- but the naming conventions
-worth reading are one municipality's, and forty-five years of a single street
-grid is a small enough corpus to check by eye.
+worth reading are one municipality's, and fifty years of a single street grid
+is a small enough corpus to check by eye.
 
 ```{r build, message = FALSE}
 cma <- cancensus::get_statcan_geographies("2021", level = "CMA", type = "digital") |>
@@ -44,7 +44,7 @@ van_city <- cancensus::get_statcan_geographies("2021", level = "CSD", type = "di
 vancouver_crs <- "+proj=lcc +lat_1=49.0000658247404 +lat_2=49.5742753405107 +lat_0=49.2871705826255 +lon_0=-123.073508713002 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
 
 vancouver <- build_temporal_network(
-  "vancouver", c(1976, 1981, 1991, 1996, 2001, 2006, 2011, 2016, 2021),
+  "vancouver", c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016, 2021),
   within = cma, region_note = "2021 CMA boundary, Vancouver (933)")
 
 city <- get_temporal_network("vancouver", within = van_city) |>
@@ -55,7 +55,7 @@ sources <- get_temporal_network_sources("vancouver")
 ```
 
 The subset is by polygon, not by attribute: `csduid_l` on a segment comes from
-the vintage its geometry was cut from, and the 1976--2006 files carry no region
+the vintage its geometry was cut from, and the files before 2011 carry no region
 columns, so an attribute filter would drop exactly the oldest segments.
 
 ## Each year holds its own name
@@ -71,7 +71,7 @@ called <- function(year, nm) {
   sources |> filter(vintage == year, src_name == nm) |> distinct(segment_id)
 }
 
-kent_block <- called(1976, "KENT") |>
+kent_block <- called(1971, "KENT") |>
   inner_join(called(1996, "NORTH KENT"), by = "segment_id") |>
   inner_join(called(2021, "E Kent"), by = "segment_id") |>
   summarize(segment_id = min(segment_id, na.rm = TRUE)) |>
@@ -84,15 +84,15 @@ sources |>
   arrange(vintage)
 ```
 
-That is a block of Kent Avenue on the Fraser, called `KENT` for thirty-five
-years, `NORTH KENT` in 1996 alone, and `E Kent` from 2016 on.
+That is a block of Kent Avenue on the Fraser, called `KENT` in every file from
+1971 to 2011 but one, `NORTH KENT` in 1996 alone, and `E Kent` from 2016 on.
 
 Two things to read off it. `source_file` is part of the identity, not
 decoration: the Area Master and Street Network Files number each source file
 from scratch, so it takes `(source_file, source_id)` to name an arc of a given
 year.
 
-And `match_kind` is `geometry` on every row up to 2016. `spine` is the year the
+And `match_kind` is `geometry` on every row before 2016. `spine` is the year the
 geometry came from, `geometry+name` is a match where the two files agreed on the
 name, and **`geometry` is a match where they did not** --- the arcs sit within
 the calibrated tolerance and run the same way, but are named differently. That
@@ -169,12 +169,12 @@ with_type <- function(year, nm) {
 }
 
 bind_rows(with_type(1991, "GRANDVIEW HIGHWAY"), with_type(1996, "GRANDVIEW"),
-          with_type(1981, "EAST BOULEVARD"),    with_type(1991, "EAST"))
+          with_type(1986, "EAST BOULEVARD"),    with_type(1991, "EAST"))
 ```
 
 1991 writes Grandview Highway's type twice, once spelled out in `name` and once
 as `HY` in `type`; 1996 keeps only the second. East Boulevard in Kerrisdale is
-the same move a decade earlier, `BOULEVARD` in the name giving way to `BV` in
+the same move one census earlier, `BOULEVARD` in the name giving way to `BV` in
 `type`. Same road, different filing.
 
 ## Peeling off the conventions
@@ -262,9 +262,10 @@ reversed |> arrange(desc(km)) |> head(8)
 ```
 
 `KENT` against `NORTH KENT` and `SOUTH KENT` is 1996 alone using a distinction
-its neighbours do not; `ANDERSON` against `GRANVILLE` and `GEORGIA VIADUCT`
-against `DUNSMUIR` are the files disagreeing about where one named structure
-ends and the next begins.
+its neighbours do not, and `EAST BOULEVARD` against `MAPPLE` is 1976 alone, an
+error the files on either side of it do not share. `ANDERSON` against
+`GRANVILLE` is the files disagreeing about where one named structure ends and
+the next begins.
 
 ## What is left
 
@@ -278,17 +279,17 @@ tibble::tibble(pairs = nrow(renames), km = round(sum(renames$km), 1))
 renames |> head(20)
 ```
 
-Forty-five kilometres over forty-five years, and it reads as a plausible list of
-one city's renamings. `KENT` → `E KENT` and `W KENT` is Kent Avenue splitting;
+Forty-two kilometres over fifty years, and it reads as a plausible list of one
+city's renamings. `KENT` → `E KENT` and `W KENT` is Kent Avenue splitting;
 `CONNAUGHT BRIDGE` → `CAMBIE BRIDGE` is the Cambie Street Bridge losing the name
 it was opened under; `PARK DRIVEWAY` → `STANLEY PK DRIVEWAY` → `STANLEY PARK`
 and `LOST LAGOON` → `N LAGOON` are Stanley Park's internal roads being
 renamed twice; `OAK BRIDGE` → `OAK STREET BRIDGE` → `99` and `GRANVILLE` → `99`
 are the highway number displacing the street name.
 
-`MAPPLE` → `EAST BOULEVARD` is a Statistics Canada spelling error being fixed,
-which is a change to the record rather than to the road. The method cannot tell
-those apart and should not pretend to.
+`LANEYS MILL` → `LAMEY'S MILL` is a Statistics Canada spelling error being
+fixed, which is a change to the record rather than to the road. The method
+cannot tell those apart and should not pretend to.
 
 ## Dating a renaming
 
@@ -303,7 +304,7 @@ kent |> count(prev_year, vintage, from, to, sort = TRUE) |> head(8)
 ```
 
 The 1996 excursion is one file's; the split into East and West Kent Avenue is a
-single event in the 2011--2016 window, 105 segments of it at once. Mapped
+single event in the 2011--2016 window, 110 segments of it at once. Mapped
 against every stable renaming in the city, coloured by the file in which the new
 name first appears:
 
@@ -352,10 +353,10 @@ chord --- a smaller problem inside a dense city grid than it would be across the
 region.
 
 **The resolution is the vintage spacing.** Every date here is a five-year
-interval, or a ten-year one across the 1981--1991 gap.
+interval, the gap between one census and the next.
 
-**A change in the record is not a change on the ground.** `MAPPLE` → `EAST
-BOULEVARD` is a correction, and the whole `loosely matched` class above is
+**A change in the record is not a change on the ground.** `LANEYS MILL` →
+`LAMEY'S MILL` is a correction, and the whole `loosely matched` class above is
 neither a correction nor a renaming. Separating a municipal renaming from either
 needs a source this data does not contain.
 

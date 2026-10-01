@@ -1,8 +1,8 @@
 ---
-title: "Forty-five years of Vancouver street network"
+title: "Fifty years of Vancouver street network"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Forty-five years of Vancouver street network}
+  %\VignetteIndexEntry{Fifty years of Vancouver street network}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -13,13 +13,14 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.path = "canstreet-vancouver-")
 ```
 
-Vancouver reaches two decades further back than the Calgary vignette, because
-the Area Master Files cover the larger urban centres before the Street Network
-File does, and the 1976 and 1981 ones are taken here. That is nine vintages
-over forty-five years in four formats
---- mainframe flat files no GIS driver opens, Street Network File coverages, a
-MapInfo interchange pair, and Road Network File shapefiles --- which the package
-makes irrelevant to the caller.
+The Calgary vignette explains a build; this one reads one. It is the eleven
+census years from 1971 to 2021, in four formats --- mainframe flat files no GIS
+driver opens, Street Network File coverages, a MapInfo interchange pair, and
+Road Network File shapefiles --- which the package makes irrelevant to the
+caller. Vancouver is the region to read it over because its Area Master Files
+reach well beyond the city from the start, twelve municipal files of them in
+1971, so half a century of one metropolitan area is in view from the first
+year.
 
 
 ```{r library, message = FALSE}
@@ -46,11 +47,11 @@ cma |> sf::st_drop_geometry() |> select(CMAUID, CMANAME)
 ## Overview
 
 Before 2001's national reach the files hold only the larger urban areas, and
-which areas counted changed from vintage to vintage. Nine reads of nine
-products, varying only the year:
+which areas counted changed from vintage to vintage. Eleven reads, varying only
+the year:
 
-```{r overview, fig.height = 8, fig.alt = "The Vancouver CMA road network as each of the nine vintages holds it, 1976 to 2021, showing coverage expanding from a few urban areas to the whole region"}
-vints <- c(1976, 1981, 1991, 1996, 2001, 2006, 2011, 2016, 2021)
+```{r overview, fig.height = 8.2, fig.alt = "The Vancouver CMA road network as each of the eleven vintages holds it, 1971 to 2021, showing coverage expanding from a few urban areas to the whole region"}
+vints <- c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016, 2021)
 
 overview <- vints |>
   lapply(function(y) {
@@ -71,8 +72,9 @@ ggplot(overview |> sf::st_transform(vancouver_crs)) +
        caption = "Source: Statistics Canada Area Master, Street Network and Road Network Files")
 ```
 
-Most of what fills in before 2001 is coverage, not construction --- keep that in
-mind for `first_year` below.
+Most of what fills in before 2001 is coverage, not construction --- the eastern
+end of the region arrives all at once in 1986. Keep that in mind for
+`first_year` below.
 
 
 
@@ -100,7 +102,7 @@ list_road_network_vintages() |>
   select(vintage, product, coverage, n_segments)
 ```
 
-A road in Langley that first appears in 2001 may well have been there in 1976,
+A road in Langley that first appears in 1986 may well have been there in 1971,
 simply outside what anyone had digitized. Growth and coverage are confounded,
 and matching cannot separate them. The kilometres present in each year stack
 both effects:
@@ -116,9 +118,9 @@ tibble::tibble(year = vints, km = round(vapply(vints, function(y) {
 
 ## Where the confounding goes away
 
-Inside a municipality already fully mapped in 1976 the coverage problem does not
+Inside a municipality already fully mapped in 1971 the coverage problem does not
 arise. Subset it with a polygon, not an attribute: `csduid_l` comes from the
-vintage a segment's geometry was cut from, and the 1976--2006 files carry no
+vintage a segment's geometry was cut from, and the files before 2011 carry no
 region columns, so an attribute filter would drop exactly the oldest segments.
 
 ```{r core}
@@ -142,10 +144,10 @@ by_first(vancouver) |>
             by = "first_year")
 ```
 
-In the city 93% of the length was already mapped in 1976 --- the grid was
-substantially complete, and what came later is infill. CMA-wide it is 57%, with
-1991 alone adding 2,426 km: that is the Street Network File reaching past the
-1981 urban envelope, not road being built.
+In the city 93% of the length was already mapped in 1971 --- the grid was
+substantially complete, and what came later is infill. CMA-wide it is 56%, with
+1986 alone adding 1,850 km: that is the Area Master File taking in Langley,
+Maple Ridge and Pitt Meadows for the first time, not road being built.
 
 
 ## The map
@@ -153,7 +155,7 @@ substantially complete, and what came later is infill. CMA-wide it is 57%, with
 The concentric structure is real growth; the hard edges are where a file's
 coverage stopped. Only segments still present in 2021 are drawn.
 
-```{r first-year-map, fig.alt = "Vancouver CMA road network coloured by the first vintage each segment appears in, 1976 to 2021"}
+```{r first-year-map, fig.alt = "Vancouver CMA road network coloured by the first vintage each segment appears in, 1971 to 2021"}
 plot_first_year <- function(x, title, linewidth = 0.1) {
   colours <- c("grey40",viridis::viridis(length(vints)-1, option = "turbo", direction = -1,
                            begin = 0.12, end = 0.92))
@@ -183,7 +185,7 @@ plot_first_year(city, "City of Vancouver streets by vintage",
                 linewidth = 0.25)
 ```
 
-## Matching across forty-five years
+## Matching across fifty years
 
 The Area Master Files might be expected to be the weak link --- hand-digitized
 map sheets, NAD27 UTM coordinates, a record layout from the mainframe era. The
@@ -194,10 +196,16 @@ temporal_network_calibration("vancouver")
 ```
 
 `recall_p50` is the positional disagreement against 2021, measured on roads the
-two files name alike. 1976 and 1981 come in at 11.4 m and 10.9 m --- *better*
-than 1991 and 1996 at 15.7 m, and on a par with 2001 and 2006. What improves
-after 2006 is vertex density rather than registration; 2011 and 2016 share
-2021's base geometry, which is why they calibrate to the 10 m floor.
+two files name alike. The four Area Master Files come in between 10.8 m and
+11.4 m --- *better* than 1991 and 1996 at 15.6 m and 15.7 m, and on a par with
+2001 and 2006. What improves after 2006 is vertex density rather than
+registration; 2011 and 2016 share 2021's base geometry, which is why they
+calibrate to the 10 m floor.
+
+That is Vancouver's result and not a property of the product. Over Calgary the
+same four years disagree with 2021 by 17 m to 20 m and sit systematically to one
+side of it, which the build there warns about --- see
+`vignette("canstreet-temporal")`.
 
 The crosswalk records how each year's segments were matched:
 
@@ -220,7 +228,7 @@ package parses it. `read_amf()` exposes it directly, as segments or as the node
 records the file stores:
 
 ```{r read-amf}
-amf <- canstreet_download(1976)
+amf <- canstreet_download(1971)
 files <- utils::unzip(amf$path, exdir = tempdir())
 nodes <- read_amf(grep("VANCOUVE", files, value = TRUE), nodes = TRUE)
 
@@ -232,7 +240,7 @@ nodes |>
 A node carries the feature's name and type, a class where it is not an ordinary
 street, the civic address range on each side, and a NAD27 UTM coordinate in its
 map sheet's zone. A segment is the block face between two consecutive nodes ---
-median length about 100 m, finer than the later files use.
+median length 109 m in this file, finer than the later files use.
 
 ## Attribution
 
