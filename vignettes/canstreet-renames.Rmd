@@ -66,23 +66,35 @@ segment itself. So a segment that was renamed carries the whole sequence:
 
 
 ``` r
+# Looked up by what three of the files call it: a `segment_id` belongs to one
+# build and does not survive a rebuild from different sources.
+called <- function(year, nm) {
+  sources |> filter(vintage == year, src_name == nm) |> distinct(segment_id)
+}
+
+kent_block <- called(1976, "KENT") |>
+  inner_join(called(1996, "NORTH KENT"), by = "segment_id") |>
+  inner_join(called(2021, "E Kent"), by = "segment_id") |>
+  summarize(segment_id = min(segment_id, na.rm = TRUE)) |>
+  pull(segment_id)
+
 sources |>
-  filter(segment_id == 67618) |>
+  filter(segment_id == kent_block) |>
   select(vintage, src_name, match_kind, dist_m, source_file) |>
   collect() |>
   arrange(vintage)
 #> # A tibble: 9 × 5
-#>   vintage src_name   match_kind       dist_m source_file       
-#>     <int> <chr>      <chr>             <dbl> <chr>             
-#> 1    1976 KENT       geometry      19.9      vancouver.data    
-#> 2    1981 KENT       geometry      21.5      vancouver.data    
-#> 3    1991 KENT       geometry       6.82     NET_VACI.E00      
-#> 4    1996 NORTH KENT geometry       6.82     GSNF933R.E00      
-#> 5    2001 Kent       geometry       0.354    grnf000r02ml_e.MIF
-#> 6    2006 Kent       geometry       0.355    grnf000r06a_e.shp 
-#> 7    2011 Kent       geometry       0.0153   grnf000r11a_e.shp 
-#> 8    2016 E Kent     geometry+name  0.000380 lrnf000r16a_e.shp 
-#> 9    2021 E Kent     spine          0        lrnf000r21a_e.shp
+#>   vintage src_name   match_kind         dist_m source_file          
+#>     <int> <chr>      <chr>               <dbl> <chr>                
+#> 1    1976 KENT       geometry      21.3        DA.AM76.VANCOUVE.TXT 
+#> 2    1981 KENT       geometry      21.3        DA.AMF81.VANCOUVE.TXT
+#> 3    1991 KENT       geometry       5.15       NET_VACI.E00         
+#> 4    1996 NORTH KENT geometry       5.27       GSNF933R.E00         
+#> 5    2001 Kent       geometry      10.9        grnf000r02ml_e.MIF   
+#> 6    2006 Kent       geometry      10.9        grnf000r06a_e.shp    
+#> 7    2011 Kent       geometry       0.00000564 grnf000r11a_e.shp    
+#> 8    2016 E Kent     geometry+name  0.00000112 lrnf000r16a_e.shp    
+#> 9    2021 E Kent     spine          0          lrnf000r21a_e.shp
 ```
 
 That is a block of Kent Avenue on the Fraser, called `KENT` for thirty-five
@@ -141,9 +153,9 @@ bind_rows(
 #> # A tibble: 3 × 3
 #>   step                          segments    km
 #>   <chr>                            <int> <dbl>
-#> 1 written differently              16099 1803.
-#> 2 ... and differ after folding      3243  275.
-#> 3 ... and neither side is blank     2934  251.
+#> 1 written differently              16093 1803.
+#> 2 ... and differ after folding      3237  274.
+#> 3 ... and neither side is blank     2928  251.
 ```
 
 Most of the raw churn is case, accents and the numbered street the files respell
@@ -187,7 +199,7 @@ bind_rows(with_type(1991, "GRANDVIEW HIGHWAY"), with_type(1996, "GRANDVIEW"),
 #> 2    1996 GRANDVIEW         HY       48
 #> 3    1981 EAST BOULEVARD    CR       35
 #> 4    1991 EAST              BV       35
-#> 5    1991 EAST              RD       16
+#> 5    1991 EAST              RD       18
 #> 6    1991 EAST              CT        2
 ```
 
@@ -258,7 +270,7 @@ changes |>
 #> # A tibble: 4 × 3
 #>   kind                segments    km
 #>   <chr>                  <int> <dbl>
-#> 1 loosely matched         1800 143. 
+#> 1 loosely matched         1794 143. 
 #> 2 candidate rename         697  64  
 #> 3 street type moved        288  30.1
 #> 4 spelling convention      149  13.8

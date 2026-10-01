@@ -14,8 +14,9 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
 ```
 
 Vancouver reaches two decades further back than the Calgary vignette, because
-the two Area Master Files Statistics Canada deposited for 1976 and 1981 cover
-British Columbia. That is nine vintages over forty-five years in four formats
+the Area Master Files cover the larger urban centres before the Street Network
+File does, and the 1976 and 1981 ones are taken here. That is nine vintages
+over forty-five years in four formats
 --- mainframe flat files no GIS driver opens, Street Network File coverages, a
 MapInfo interchange pair, and Road Network File shapefiles --- which the package
 makes irrelevant to the caller.
@@ -143,7 +144,7 @@ by_first(vancouver) |>
 
 In the city 93% of the length was already mapped in 1976 --- the grid was
 substantially complete, and what came later is infill. CMA-wide it is 57%, with
-1991 alone adding 2,421 km: that is the Street Network File reaching past the
+1991 alone adding 2,426 km: that is the Street Network File reaching past the
 1981 urban envelope, not road being built.
 
 
@@ -185,7 +186,7 @@ plot_first_year(city, "City of Vancouver streets by vintage",
 ## Matching across forty-five years
 
 The Area Master Files might be expected to be the weak link --- hand-digitized
-map sheets, NAD27 UTM coordinates, packed two decimal digits to the byte. The
+map sheets, NAD27 UTM coordinates, a record layout from the mainframe era. The
 calibration says otherwise:
 
 ```{r calibration}
@@ -193,7 +194,7 @@ temporal_network_calibration("vancouver")
 ```
 
 `recall_p50` is the positional disagreement against 2021, measured on roads the
-two files name alike. 1976 and 1981 come in at 11.5 m and 11.0 m --- *better*
+two files name alike. 1976 and 1981 come in at 11.4 m and 10.9 m --- *better*
 than 1991 and 1996 at 15.7 m, and on a par with 2001 and 2006. What improves
 after 2006 is vertex density rather than registration; 2011 and 2016 share
 2021's base geometry, which is why they calibrate to the 10 m floor.
@@ -213,14 +214,15 @@ than folded in, so a stricter reading is a filter away.
 
 ## The raw Area Master File
 
-No GIS driver opens the Area Master File --- fixed-width mainframe records, 113
-bytes in 1976 and 95 in 1981, the second in EBCDIC with packed-decimal
-coordinates --- so the package parses it. `read_amf()` exposes it directly, as
-segments or as the node records the file stores:
+No GIS driver opens the Area Master File --- fixed-width mainframe records, one
+flat file per municipality, the coordinates written out as digits --- so the
+package parses it. `read_amf()` exposes it directly, as segments or as the node
+records the file stores:
 
 ```{r read-amf}
 amf <- canstreet_download(1976)
-nodes <- read_amf(amf$path[amf$filename == "vancouver.data"], nodes = TRUE)
+files <- utils::unzip(amf$path, exdir = tempdir())
+nodes <- read_amf(grep("VANCOUVE", files, value = TRUE), nodes = TRUE)
 
 nodes |>
   select(sheet_name, feature, seq_no, name, type, class, x, y, zone) |>

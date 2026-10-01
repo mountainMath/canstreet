@@ -65,8 +65,20 @@ file called it --- not what the newest year calls it, which is the `name` on the
 segment itself. So a segment that was renamed carries the whole sequence:
 
 ```{r one-segment}
+# Looked up by what three of the files call it: a `segment_id` belongs to one
+# build and does not survive a rebuild from different sources.
+called <- function(year, nm) {
+  sources |> filter(vintage == year, src_name == nm) |> distinct(segment_id)
+}
+
+kent_block <- called(1976, "KENT") |>
+  inner_join(called(1996, "NORTH KENT"), by = "segment_id") |>
+  inner_join(called(2021, "E Kent"), by = "segment_id") |>
+  summarize(segment_id = min(segment_id, na.rm = TRUE)) |>
+  pull(segment_id)
+
 sources |>
-  filter(segment_id == 67618) |>
+  filter(segment_id == kent_block) |>
   select(vintage, src_name, match_kind, dist_m, source_file) |>
   collect() |>
   arrange(vintage)

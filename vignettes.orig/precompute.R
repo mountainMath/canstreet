@@ -34,7 +34,16 @@ out_dir <- normalizePath(file.path(src_dir, "..", "vignettes"), mustWork = TRUE)
 
 devtools::load_all(file.path(src_dir, ".."), quiet = TRUE)
 
-available <- sub("\\.Rmd$", "", list.files(src_dir, pattern = "\\.Rmd$"))
+# duckdb announces where it keeps its extensions on each connection of a
+# non-interactive session, naming this machine's home directory, and a chunk
+# that connects would carry that into the vignette. Stating the choice it would
+# make anyway, once, is what it documents as the way to be told no more.
+if ("shared_home" %in% names(formals(duckdb::duckdb))) {
+  duckdb::duckdb_shutdown(duckdb::duckdb(
+    shared_home = dir.exists(file.path("~", ".duckdb"))))
+}
+
+available <-sub("\\.Rmd$", "", list.files(src_dir, pattern = "\\.Rmd$"))
 wanted <- sub("\\.Rmd$", "", commandArgs(trailingOnly = TRUE))
 if (!length(wanted)) wanted <- available
 

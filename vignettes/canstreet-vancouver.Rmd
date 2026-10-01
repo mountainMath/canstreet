@@ -12,8 +12,9 @@ vignette: >
 
 
 Vancouver reaches two decades further back than the Calgary vignette, because
-the two Area Master Files Statistics Canada deposited for 1976 and 1981 cover
-British Columbia. That is nine vintages over forty-five years in four formats
+the Area Master Files cover the larger urban centres before the Street Network
+File does, and the 1976 and 1981 ones are taken here. That is nine vintages
+over forty-five years in four formats
 --- mainframe flat files no GIS driver opens, Street Network File coverages, a
 MapInfo interchange pair, and Road Network File shapefiles --- which the package
 makes irrelevant to the caller.
@@ -99,19 +100,19 @@ vancouver <- build_temporal_network(
 
 vancouver
 #> # A query:  ?? x 33
-#> # Database: DuckDB 1.5.4 [jens@Darwin 25.6.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
+#> # Database: DuckDB 1.5.6 [jens@Darwin 27.0.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
 #>    segment_id spine_vintage spine_id         spine_piece spine_lo spine_hi years
 #>         <dbl>         <int> <chr>                  <int>    <dbl>    <dbl> <lis>
-#>  1          1          1976 01-5937-1563-00…           1        0        1 <int>
-#>  2          2          1976 01-5937-1563-00…           1        0        1 <int>
-#>  3          3          1976 01-5937-1563-00…           1        0        1 <int>
-#>  4          4          1976 01-5937-1563-00…           1        0        1 <int>
-#>  5          5          1976 01-5937-1563-00…           1        0        1 <int>
-#>  6          6          1976 01-5937-1563-00…           1        0        1 <int>
-#>  7          7          1976 01-5937-1563-00…           1        0        1 <int>
-#>  8          8          1976 01-5937-1563-00…           1        0        1 <int>
-#>  9          9          1976 01-5937-1563-00…           1        0        1 <int>
-#> 10         10          1976 01-5937-1563-00…           1        0        1 <int>
+#>  1          1          1976 01-5937-1504-02…           1        0        1 <int>
+#>  2          2          1976 01-5937-1504-03…           1        0        1 <int>
+#>  3          3          1976 01-5937-1504-03…           1        0        1 <int>
+#>  4          4          1976 01-5937-1504-03…           1        0        1 <int>
+#>  5          5          1976 01-5937-1504-03…           1        0        1 <int>
+#>  6          6          1976 01-5937-1504-03…           1        0        1 <int>
+#>  7          7          1976 01-5937-1504-03…           2        0        1 <int>
+#>  8          8          1976 01-5937-1504-03…           1        0        1 <int>
+#>  9          9          1976 01-5937-1504-04…           1        0        1 <int>
+#> 10         10          1976 01-5937-1504-04…           1        0        1 <int>
 #> # ℹ more rows
 #> # ℹ 26 more variables: year_key <chr>, n_years <int>, first_year <int>,
 #> #   last_year <int>, source_id <chr>, name <chr>, type <chr>, dir <chr>,
@@ -134,8 +135,8 @@ list_road_network_vintages() |>
 #> # A tibble: 9 × 4
 #>   vintage product coverage n_segments
 #>     <int> <chr>   <chr>         <int>
-#> 1    1976 AMF     bc-urban      60883
-#> 2    1981 AMF     bc-urban     103774
+#> 1    1976 AMF     urban        431844
+#> 2    1981 AMF     urban        529158
 #> 3    1991 SNF     urban        599625
 #> 4    1996 SNF     urban        629574
 #> 5    2001 RNF     national    2053112
@@ -161,8 +162,8 @@ tibble::tibble(year = vints, km = round(vapply(vints, function(y) {
 #> # A tibble: 9 × 2
 #>    year     km
 #>   <dbl>  <dbl>
-#> 1  1976  6494 
-#> 2  1981  7069.
+#> 1  1976  6489.
+#> 2  1981  7066 
 #> 3  1991  9316.
 #> 4  1996  9472 
 #> 5  2001  9955.
@@ -203,9 +204,9 @@ by_first(vancouver) |>
 #> # A tibble: 9 × 5
 #>   first_year km_cma share_cma km_city share_city
 #>        <int>  <dbl>     <dbl>   <dbl>      <dbl>
-#> 1       1976 6494       0.571  1499.       0.935
-#> 2       1981  695.      0.061    27.8      0.017
-#> 3       1991 2421.      0.213    29.9      0.019
+#> 1       1976 6489.      0.571  1499.       0.935
+#> 2       1981  692.      0.061    27.8      0.017
+#> 3       1991 2426       0.214    29.9      0.019
 #> 4       1996  342.      0.03     13.4      0.008
 #> 5       2001  556.      0.049    12.4      0.008
 #> 6       2006  174.      0.015     4.9      0.003
@@ -216,7 +217,7 @@ by_first(vancouver) |>
 
 In the city 93% of the length was already mapped in 1976 --- the grid was
 substantially complete, and what came later is infill. CMA-wide it is 57%, with
-1991 alone adding 2,421 km: that is the Street Network File reaching past the
+1991 alone adding 2,426 km: that is the Street Network File reaching past the
 1981 urban envelope, not road being built.
 
 
@@ -270,7 +271,7 @@ plot_first_year(city, "City of Vancouver streets by vintage",
 ## Matching across forty-five years
 
 The Area Master Files might be expected to be the weak link --- hand-digitized
-map sheets, NAD27 UTM coordinates, packed two decimal digits to the byte. The
+map sheets, NAD27 UTM coordinates, a record layout from the mainframe era. The
 calibration says otherwise:
 
 
@@ -285,13 +286,13 @@ temporal_network_calibration("vancouver")
 #> 4    2001          36   49702 11.2         35.3             0.107       0.122 
 #> 5    1996          38   45630 15.7         37.7             0.187       0.176 
 #> 6    1991          38   43965 15.6         37.5             0.191       0.180 
-#> 7    1981          34   41377 10.9         33.5             0.135       0.150 
-#> 8    1976          37   36687 11.4         36.4             0.144       0.161 
+#> 7    1981          34   41240 10.9         33.5             0.135       0.149 
+#> 8    1976          37   36534 11.4         36.2             0.143       0.160 
 #> # ℹ 3 more variables: disagree_40 <dbl>, dx <dbl>, dy <dbl>
 ```
 
 `recall_p50` is the positional disagreement against 2021, measured on roads the
-two files name alike. 1976 and 1981 come in at 11.5 m and 11.0 m --- *better*
+two files name alike. 1976 and 1981 come in at 11.4 m and 10.9 m --- *better*
 than 1991 and 1996 at 15.7 m, and on a par with 2001 and 2006. What improves
 after 2006 is vertex density rather than registration; 2011 and 2016 share
 2021's base geometry, which is why they calibrate to the 10 m floor.
@@ -308,15 +309,15 @@ get_temporal_network_sources("vancouver") |>
 #>    vintage match_kind        n
 #>      <int> <chr>         <dbl>
 #>  1    1976 geometry+name 32191
-#>  2    1976 geometry      10549
-#>  3    1976 name_rescue    5649
-#>  4    1976 spine           306
-#>  5    1981 geometry+name 35110
-#>  6    1981 geometry      11145
-#>  7    1981 name_rescue    6409
-#>  8    1981 spine           824
-#>  9    1991 geometry+name 43615
-#> 10    1991 geometry      14608
+#>  2    1976 geometry      10552
+#>  3    1976 name_rescue    5654
+#>  4    1976 spine           256
+#>  5    1981 geometry+name 35147
+#>  6    1981 geometry      11119
+#>  7    1981 name_rescue    6394
+#>  8    1981 spine           835
+#>  9    1991 geometry+name 43635
+#> 10    1991 geometry      14607
 #> # ℹ 23 more rows
 ```
 
@@ -326,27 +327,28 @@ than folded in, so a stricter reading is a filter away.
 
 ## The raw Area Master File
 
-No GIS driver opens the Area Master File --- fixed-width mainframe records, 113
-bytes in 1976 and 95 in 1981, the second in EBCDIC with packed-decimal
-coordinates --- so the package parses it. `read_amf()` exposes it directly, as
-segments or as the node records the file stores:
+No GIS driver opens the Area Master File --- fixed-width mainframe records, one
+flat file per municipality, the coordinates written out as digits --- so the
+package parses it. `read_amf()` exposes it directly, as segments or as the node
+records the file stores:
 
 
 ``` r
 amf <- canstreet_download(1976)
-nodes <- read_amf(amf$path[amf$filename == "vancouver.data"], nodes = TRUE)
+files <- utils::unzip(amf$path, exdir = tempdir())
+nodes <- read_amf(grep("VANCOUVE", files, value = TRUE), nodes = TRUE)
 
 nodes |>
   select(sheet_name, feature, seq_no, name, type, class, x, y, zone) |>
   head(5)
 #> # A tibble: 5 × 9
-#>   sheet_name   feature seq_no name  type  class      x       y  zone
-#>   <chr>          <int>  <int> <chr> <chr> <chr>  <dbl>   <dbl> <int>
-#> 1 BOWEN ISLAND    1000     60 ADAMS RD    <NA>  470779 5467091    10
-#> 2 BOWEN ISLAND    1000     65 ADAMS RD    <NA>  470634 5467057    10
-#> 3 BOWEN ISLAND    1000     70 ADAMS RD    <NA>  470493 5467025    10
-#> 4 BOWEN ISLAND    1000     75 ADAMS RD    <NA>  470431 5467051    10
-#> 5 BOWEN ISLAND    1000     80 ADAMS RD    <NA>  470275 5467037    10
+#>   sheet_name feature seq_no name   type  class      x       y  zone
+#>   <chr>        <int>  <int> <chr>  <chr> <chr>  <dbl>   <dbl> <int>
+#> 1 VANCOUVER     1000     10 ABBOTT ST    <NA>  492336 5458878    10
+#> 2 VANCOUVER     1000     15 ABBOTT ST    <NA>  492326 5458831    10
+#> 3 VANCOUVER     1000     17 ABBOTT ST    <NA>  492312 5458770    10
+#> 4 VANCOUVER     1000     20 ABBOTT ST    <NA>  492296 5458726    10
+#> 5 VANCOUVER     1000     25 ABBOTT ST    <NA>  492266 5458619    10
 ```
 
 A node carries the feature's name and type, a class where it is not an ordinary

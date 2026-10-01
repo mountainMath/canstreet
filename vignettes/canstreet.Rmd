@@ -40,24 +40,24 @@ reports what is in effect.
 ``` r
 list_road_network_vintages() |>
   select(vintage, product, coverage, source_crs, imported)
-#> # A tibble: 26 × 5
+#> # A tibble: 28 × 5
 #>    vintage product coverage source_crs imported
 #>      <int> <chr>   <chr>    <chr>      <lgl>   
-#>  1    1976 AMF     bc-urban EPSG:4267  TRUE    
-#>  2    1981 AMF     bc-urban EPSG:4267  TRUE    
-#>  3    1991 SNF     urban    EPSG:4267  TRUE    
-#>  4    1996 SNF     urban    EPSG:4267  TRUE    
-#>  5    2001 RNF     national EPSG:4269  TRUE    
-#>  6    2005 RNF     national EPSG:4269  FALSE   
-#>  7    2006 RNF     national EPSG:4269  TRUE    
-#>  8    2007 RNF     national EPSG:4269  FALSE   
-#>  9    2008 RNF     national EPSG:4269  FALSE   
-#> 10    2009 RNF     national EPSG:4269  FALSE   
-#> # ℹ 16 more rows
+#>  1    1971 AMF     urban    EPSG:4267  FALSE   
+#>  2    1976 AMF     urban    EPSG:4267  TRUE    
+#>  3    1981 AMF     urban    EPSG:4267  TRUE    
+#>  4    1986 AMF     urban    EPSG:4267  FALSE   
+#>  5    1991 SNF     urban    EPSG:4267  TRUE    
+#>  6    1996 SNF     urban    EPSG:4267  TRUE    
+#>  7    2001 RNF     national EPSG:4269  TRUE    
+#>  8    2005 RNF     national EPSG:4269  FALSE   
+#>  9    2006 RNF     national EPSG:4269  TRUE    
+#> 10    2007 RNF     national EPSG:4269  FALSE   
+#> # ℹ 18 more rows
 ```
 
-The 1991 and 1996 Street Network Files cover urban areas only; everything from
-2001 on is national.
+The 1971 to 1986 Area Master Files and the 1991 and 1996 Street Network Files
+cover urban areas only; everything from 2001 on is national.
 
 ## Getting a vintage
 
@@ -68,7 +68,7 @@ The first call downloads and imports; after that it is instant.
 roads <- get_road_network(2021)
 roads
 #> # A query:  ?? x 24
-#> # Database: DuckDB 1.5.4 [jens@Darwin 25.6.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
+#> # Database: DuckDB 1.5.6 [jens@Darwin 27.0.0:R 4.6.0//Users/jens/data/canstreet/canstreet.duckdb]
 #>    vintage source_file source_id name  type  dir    af_l  at_l  af_r  at_r class
 #>      <int> <chr>       <chr>     <chr> <chr> <chr> <int> <int> <int> <int> <fct>
 #>  1    2021 lrnf000r21… 5792582   des … RANG  <NA>    195   195   182   194 Local
@@ -262,8 +262,8 @@ list_canstreet_cache()
 #> # A tibble: 9 × 6
 #>   vintage n_segments n_archives raw_mb imported_at              package_version
 #>     <int>      <int>      <int>  <dbl> <chr>                    <chr>          
-#> 1    1976      60883          2    8.2 2026-08-30T14:29:39-0700 0.0.0.9000     
-#> 2    1981     103774          2   10.2 2026-08-30T14:29:42-0700 0.0.0.9000     
+#> 1    1976     431844          1   25.6 2026-10-01T14:07:02-0700 0.0.0.9000     
+#> 2    1981     529158          1   29.9 2026-10-01T14:07:28-0700 0.0.0.9000     
 #> 3    1991     599625         51   72.5 2026-08-29T12:49:40-0700 0.0.0.9000     
 #> 4    1996     629574         50   70.5 2026-08-29T12:46:01-0700 0.0.0.9000     
 #> 5    2001    2053112          1  250   2026-08-29T11:15:39-0700 0.0.0.9000     

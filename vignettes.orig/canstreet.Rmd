@@ -44,8 +44,8 @@ list_road_network_vintages() |>
   select(vintage, product, coverage, source_crs, imported)
 ```
 
-The 1991 and 1996 Street Network Files cover urban areas only; everything from
-2001 on is national.
+The 1971 to 1986 Area Master Files and the 1991 and 1996 Street Network Files
+cover urban areas only; everything from 2001 on is national.
 
 ## Getting a vintage
 
