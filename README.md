@@ -128,58 +128,19 @@ set as a list column, for `list_contains(years, 1996)`, `n_years`,
 `first_year` and `last_year` fall out of it. Roads that have gone are
 `last_year < 2021`, roads that are new are `first_year > 1996`.
 
+Region-scoped builds are the supported scale: `within = NULL` is accepted, but a
+national build does not finish yet. The years are yours to pick -- any two or
+more vintages, or `NULL` for everything the cache holds.
 
-Three things the design commits to.
+How the matching works, and what it commits to, is in
+`?build_temporal_network`. Three vignettes work it through:
 
-**Newer geometry wins.** Geocoding accuracy improves across the series, so a
-segment's geometry is always cut from the newest year it appears in --
-`last_year == spine_vintage` holds for every row. Older vintages contribute
-geometry only where no newer one covers them, which is exactly the set of roads
-that have since been retired.
-
-**Segments are cut where the years disagree.** The vintages do not agree on
-where one arc ends and the next begins -- the same Calgary extent holds 27,462
-arcs in 1996, 30,759 in 2006 and 58,791 in 2021. Rather than trying to match
-whole arc to whole arc, which succeeds for barely a third of them, arcs are cut
-at every point where any vintage's coverage changes, so a segment is uniform in
-its year membership over its whole length.
-
-**Matching is calibrated, not assumed.** `temporal_network_calibration()`
-reports what the build measured before it matched anything: how far same-named
-arcs sit from each other in each vintage pair, and the rate at which a given
-tolerance starts matching a road to its neighbour instead. `tolerance =`
-overrides it. `get_temporal_network_sources()` is the crosswalk -- one row per
-segment per year, naming the source arc, the distance, and which rule matched
-it -- so nothing about the matching has to be taken on trust.
-
-Region identifiers are not stable through time either: Statistics Canada reuses
-`CSDUID` codes across boundary revisions, so restricting to a region is done by
-stamping one fixed polygon across every year, never by filtering the attribute.
-`temporal_network_region_drift()` turns that into a result rather than a
-caveat, reporting every stretch of road that changed census subdivision without
-moving -- for Calgary 2011-2021 it recovers the annexation of 54.7 km of road
-into Airdrie, along with smaller transfers into Calgary, Chestermere and
-Cochrane.
-
-The years are yours to pick: any two or more vintages in any spacing, `NULL` for
-everything the cache already holds, and a second build under another name can
-use a different set. `vignette("canstreet-temporal")` works the Calgary pilot
-through end to end, and `vignette("canstreet-vancouver")` builds an
-eleven-vintage series over the Vancouver CMA -- 1971 to 2021, four file formats
--- to show what a segment's first year does and does not mean.
-
-The crosswalk records the name each year's own file gave a segment, so street
-renaming is readable from a finished build. Most of the churn is spelling rather
-than naming, and `vignette("canstreet-renames")` peels those layers off over the
-City of Vancouver until what is left is renaming -- 42 km of it over fifty
-years, among it Kent Avenue splitting into East and West between the 2011 and
-2016 files.
-
-`within = NULL` builds the whole country, but region-scoped builds are the
-supported scale for now: a national two-vintage build spilled over 32 GB of
-temporary storage in the coverage pass on the machine this was developed on,
-and did not finish. A CMA-sized region takes about 20 seconds for five
-vintages, and about four minutes for nine.
+- `vignette("canstreet-temporal")` -- a Calgary build explained end to end:
+  calibration, the crosswalk, what disappeared, regions moving under the roads.
+- `vignette("canstreet-vancouver")` -- eleven vintages over the Vancouver CMA,
+  1971 to 2021, and what a segment's first year does and does not mean.
+- `vignette("canstreet-renames")` -- reading street renamings off a finished
+  build.
 
 ## Data and coverage
 
