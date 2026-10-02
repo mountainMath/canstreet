@@ -64,10 +64,19 @@ here.
 
 Beyond the code:
 
-- `README.md` — the data and coverage narrative: the one series under three names, what the files
-  are and are not (not routable, address ranges thin outside the cities), and the citable
-  Statistics Canada sources for all of it. This is the user-facing version of the story; do not
-  restate it in module comments.
+- `README.md` — the short user-facing overview, and the pkgdown home page: what the package does,
+  the cache path, usage, the vintage table, and only the caveats a user must know before trusting a
+  result (coverage changes over time, the files are not routable, address ranges are thin outside
+  the cities, 2001 is a break in the geometry, the early vintages carry more than roads, some
+  vintages draw roads not yet built). It links the Statistics Canada dictionary entries rather than
+  retelling them. Keep it that short: detail goes to a vignette or the function documentation, and
+  is not restated in module comments.
+- `.claude/notes/readme-cuttings.md` — the longer account of the series the README used to carry:
+  the one series under three names and Statistics Canada's inconsistent naming of it, pre-2001
+  coverage shares, the Area Master File format and how its geometry holds up, the per-vintage
+  vocabularies, why the planned roads are worth keeping for geocoding, and why CanVec is not a
+  fourth source. Internal, with the corrections found since. Lift from it when writing a vignette or
+  article instead of growing the README back.
 - `vignettes.orig/*.Rmd` — the analyses worked end to end, with their numbers: `canstreet.Rmd`
   (getting started), `canstreet-temporal.Rmd` (a build explained), `canstreet-vancouver.Rmd`
   (50 years over one CMA), `canstreet-renames.Rmd` (classifying name changes).

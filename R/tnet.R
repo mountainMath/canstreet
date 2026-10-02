@@ -906,10 +906,11 @@ cs_not_superseded_sql <- function(bare = FALSE) {
 
 #' Build the segment-to-source crosswalk
 #'
-#' README item 2 in its own right: for every emitted segment and every year it
-#' is present in, which arc of that year's file it corresponds to, how far away
-#' that arc is, whether the names agree, and which of the two matching rules
-#' found it. Recording the rule is what keeps the same-name rescue auditable --
+#' The matching as a product in its own right, which is how the package makes
+#' good on identifying the same segment across years: for every emitted segment
+#' and every year it is present in, which arc of that year's file it
+#' corresponds to, how far away that arc is, whether the names agree, and which
+#' of the two matching rules found it. Recording the rule is what keeps the same-name rescue auditable --
 #' a caller who distrusts it can drop `match_kind = 'name_rescue'` and see
 #' exactly what it was carrying.
 #'
