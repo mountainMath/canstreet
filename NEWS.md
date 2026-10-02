@@ -34,6 +34,10 @@ matches segments across years into a temporally unified network.
   `canstreet_domains()` returns the vocabularies, `canstreet_road_classes()`
   says which classes count as road in which vintage, and `canstreet_schema()`
   describes the harmonized columns.
+* 2005 has a class vocabulary of its own, six classes that are all road and no
+  rank; 2006 to 2010 carry neither column. A cache that imported 2005 before
+  its vocabulary was added holds the bare codes (`ST`, `HI`, ...) until it is
+  re-imported with `get_road_network(2005, refresh = TRUE)`.
 * `read_amf()` reads a single Area Master File, as segments or as the node
   records the file stores, in any of its three transcriptions.
 * `canstreet_download()` fetches a vintage's archives without importing them.

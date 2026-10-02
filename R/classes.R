@@ -63,8 +63,9 @@ cs_class_categories <- function(vintage) {
   }
   if (identical(src$product[1], "SNF")) return(cs_categories_snf())
   if (vintage == 2001L) return(cs_categories_rnf_2001())
+  if (vintage == 2005L) return(cs_categories_rnf_2005())
   if (vintage >= 2011L) return(cs_categories_rnf(vintage))
-  # 2005-2010 ship no class column and document no vocabulary.
+  # 2006-2010 ship no class column.
   NULL
 }
 
@@ -207,6 +208,14 @@ cs_categories_rnf_2001 <- function() {
   tibble::tibble(code = d$code, category = cat, status = status)
 }
 
+# 2005. Six classes, every one a road and none of them a road in prospect: the
+# guide has no word for planned or under construction, and defines each class
+# as a kind of road.
+cs_categories_rnf_2005 <- function() {
+  d <- cs_domain_rnf_2005_class()
+  tibble::tibble(code = d$code, category = "road", status = "operational")
+}
+
 # 2011 onward. The Road Network File is a road network, so every class in it is
 # a road -- including `26` "Reserve / Trail", which is the forest service and
 # resource road network rather than a footpath, `27` "Rapid transit", which is
@@ -285,8 +294,9 @@ cs_class_filter_sense <- function(vintage) {
 
 #' A predicate restricting a vintage to its road features
 #'
-#' `NULL` when the vintage needs no filter -- 2005 to 2010, which carry no class
-#' column and are roads already. An unclassed arc is kept by every vintage's
+#' `NULL` when the vintage needs no filter -- 2006 to 2010, which carry no class
+#' column and are roads already, and 2005, whose six classes are all road. An
+#' unclassed arc is kept by every vintage's
 #' predicate: in the Area Master Files and the Street Network Files a blank
 #' class *is* the ordinary street, and in a Road Network File it is an arc whose
 #' class was not recorded.
@@ -377,8 +387,9 @@ cs_roads_only_sql <- function(vintages, qualify = length(vintages) > 1L,
 #' other" is the Klondike and Alaska highways, and 2021's "Reserve / Trail" is
 #' 92,000 km of forest service road.
 #'
-#' Vintages 2005 to 2010 return zero rows: they carry no class column, and
-#' everything in them is road.
+#' Vintages 2006 to 2010 return zero rows: they carry no class column, and
+#' everything in them is road. So is everything in 2005, which has six classes
+#' and no way of marking a road that was not yet built.
 #'
 #' @param vintage Reference year, or a vector of them. Defaults to every vintage
 #'   in the manifest.

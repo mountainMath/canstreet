@@ -3,10 +3,10 @@
 # `class` and `rank` are coded fields, and the codes are meaningless without the
 # vocabulary that defines them. Statistics Canada publishes that vocabulary once
 # per census year, and it changes: 2016 adds class 95 to mean the same thing as
-# 90, 2021 drops 95 and adds 87 for winter roads, and the pre-2005 products use
-# vocabularies with no codes in common with the modern one at all. So a domain
-# here is always tied to the vintages it was published for, never shared across
-# an era boundary on the assumption that the codes carried over.
+# 90, 2021 drops 95 and adds 87 for winter roads, and everything before 2011
+# uses a vocabulary with no codes in common with the modern one at all. So a
+# domain here is always tied to the vintages it was published for, never shared
+# across an era boundary on the assumption that the codes carried over.
 #
 # Where each domain comes from, all of them primary sources rather than
 # secondary documentation:
@@ -22,6 +22,9 @@
 #               the shapefiles.
 #   2001        Section 5, "Class", of the 2001 Road Network Files Reference
 #               Guide, catalogue 92F0157GIE, shipped inside `grnf000r01a_e.zip`.
+#   2005        "Class", under "Attribute domain values", in the 2005 Road
+#               Network File Reference Guide, catalogue 92-500-GIE, shipped
+#               inside the zip -- see `cs_domain_rnf_2005_class()`.
 #   2011        Tables under RANK and CLASS in the Road Network File Reference
 #               Guide 2011, catalogue 92-500-G, shipped inside the zip.
 #   2016        The same tables in the 2016 guide, shipped inside the zip. It is
@@ -30,8 +33,8 @@
 #               domain-domaine/index2021-eng.cfm?lang=e&id=CLASS (and `=RANK`).
 #
 # Every guide but 2021's ships *inside* the archive the vintage arrives in:
-# `92-500-G<year>001-eng.pdf` in each Road Network File zip,
-# `92f0157g2001000-eng.pdf` in 2001's, `snfarc.pdf` and `snfamf.pdf` in the
+# `92-500-G<year>001-eng.pdf` in each Road Network File zip
+# (`92-500-GIE2005001.pdf` in 2005's), `92f0157g2001000-eng.pdf` in 2001's, `snfarc.pdf` and `snfamf.pdf` in the
 # 1991 Abacus deposit, and the 1988 guide in the `documentation` directory of
 # each Area Master File zip. Extract it from the cached archive and read it
 # rather than searching the web -- the attribute-domain pages on the Statistics
@@ -39,8 +42,14 @@
 # return the soft 404. The two Area Master File guides are scans with no text
 # layer, so `pdftotext` returns nothing for them.
 #
-# 2005 through 2010 get no domain: the 2006 reference guide documents no CLASS
-# or RANK table, and the 2006 file carries neither column.
+# 2006 through 2010 get no domain because they have nothing to label: none of
+# the five files carries a CLASS or a RANK column. The 2006 guide says why --
+# "The attribute CLASS is no longer maintained by the National Geographic
+# Database, and therefore is not included in the product" -- and the 2007 to
+# 2010 guides print no table for either. 2005 is not one of them, though it was
+# long filed with them here on the strength of the 2006 guide alone: it is the
+# one release of the 92-500 series before 2011 that has a class column, and its
+# guide defines every value in it. Read each year's own guide.
 
 # What documents the Area Master File classes, and what does not, so that
 # nobody repeats the search. Statistics Canada delivered the 1971 to 1986 files
@@ -49,10 +58,20 @@
 # a reference list of the municipalities each file covers, a count of records
 # per file, and one user guide -- The Area Master File User Guide, Geography
 # Division, January 1988, which describes the 1986 file. Neither record layout
-# lists a feature class, and no guide to the 1971, 1976 or 1981 file is known:
-# publications.gc.ca, archive.org, Library and Archives Canada, HathiTrust and
-# the university data libraries hold none in either official language, and
-# Statistics Canada supplied none with the files.
+# lists a feature class, and no official guide to the 1971, 1976 or 1981 file
+# is known: publications.gc.ca, archive.org, Library and Archives Canada,
+# HathiTrust and the university data libraries hold none in either official
+# language, and Statistics Canada supplied none with the files. Two are known by
+# title and are not online -- "GRDSR: area master file documentation" (1981)
+# and "Area Master File Documentation" (Geography Division, 1985).
+#
+# One secondary guide does exist: Mallette and Lapalme, Guide d'utilisation des
+# "Area Master Files", Universite de Montreal, Centre de recherche sur les
+# transports, publication 273, 1982 (archive.org, `micro_IA40243510_2205`). Its
+# Liste A agrees with the families used here and adds one code List A lacks,
+# `O B`, "autre frontiere statistique". It describes the files as that centre
+# had transformed them and has no `Z`, so it corroborates the labels below
+# without being the source of any of them.
 
 #' The 1971, 1976 and 1981 Area Master File feature classification
 #'
@@ -82,14 +101,21 @@
 #'   List A pairs the `O` topography family with `N` only. It is 6 arcs in each
 #'   of 1971 and 1976 ("GVRD WATERSHED BOUNDARY") and 419 in 1981, where it has
 #'   become a catch-all: "AUTOROUTE 50 PROPOSE", "PIPELINE", "OAKALLA PRISON
-#'   BDRY", "LIGNE DE TRANSMISSION", "DITCH". "Other" is the obvious reading,
-#'   but it is a reading and not a source.
-#' - `Z` (547 arcs in 1971, 662 in 1976, none in 1981) is where List A and the
-#'   data flatly disagree. The guide gives the `Z` family as hydroline,
-#'   telephone line, fence and pipeline; the arcs are Kingsway, The Queensway,
-#'   boulevard Decarie and Lougheed Highway, some 60% of them addressed.
-#'   `cs_categories_amf()` follows the data and calls them road, and no label
-#'   is asserted over the top of that.
+#'   BDRY", "LIGNE DE TRANSMISSION", "DITCH". The one definition found is
+#'   secondary -- Mallette and Lapalme's 1982 guide calls `O B` "autre
+#'   frontiere statistique", other statistical boundary -- and it fits the six
+#'   watershed arcs better than the 1981 catch-all, so the code stays bare.
+#' - `Z` with a blank sub-type (547 arcs in 1971, 662 in 1976, none in 1981) is
+#'   not a List A combination either. The guide's `Z` family is `Z N` --
+#'   hydroline, telephone line, fence, pipeline -- and nothing like these arcs:
+#'   Kingsway, The Queensway, boulevard Decarie and Lougheed Highway, 73% of
+#'   them addressed in 1971 and 65% in 1976. A type letter over a blank sub-type
+#'   is the shape of List A's `E`, "Addressable Multiple street & public access
+#'   lane", and that is the nearest reading; but it is not the same class
+#'   renamed, since by 1981 all but a handful are ordinary unclassed streets and
+#'   in 1986 only 27 of the 662 lie on an `E` arc. `cs_categories_amf()` follows
+#'   the data and calls them road, and no label is asserted over the top of
+#'   that.
 #'
 #' A blank class needs no entry: it is stored as `NULL`, and List A gives it its
 #' own row -- "Addressable Single street & public access lane" -- which is why
@@ -302,6 +328,48 @@ cs_domain_rnf_2001_class <- function() {
   )
 }
 
+#' The 2005 Road Network File class vocabulary
+#'
+#' The first release of the 92-500 series is the only one before 2011 to carry a
+#' class, and its guide defines six, each with a description that is a term
+#' followed by its definition:
+#'
+#' - `ST` -- "Streets, low speed roads dedicated to provide full access to the
+#'   front of properties"
+#' - `HI` -- "Highways, high speed usually with no property or direct access"
+#' - `UTR` -- "Utility roads (not addressable), low speed roads to provide
+#'   access to property"
+#' - `UR` -- "Unclassified roads"
+#' - `CON` -- "Connector roads (not addressable), roadways providing for
+#'   controlled movement between two or more roadways"
+#' - `BT` -- "Bridges and tunnels (not addressable)"
+#'
+#' The label is the term. The definition is too long to filter on, and "not
+#' addressable" is a remark about the class rather than part of its name -- one
+#' the file bears out, 35 of 83,246 `UTR` arcs carrying an address field.
+#'
+#' The file holds those six codes and nothing else, on every one of its
+#' 1,864,299 arcs. The same guide warns that the classes were converted from the
+#' National Topographic Database and Digital Chart of the World schemes and
+#' that "road classification has not been maintained", which is what the 2006
+#' release acts on by dropping the column. It also says that "roads in this
+#' version of the product are not ranked", so there is no rank domain.
+#'
+#' @return A tibble of `code` and `label`.
+#' @keywords internal
+#' @noRd
+cs_domain_rnf_2005_class <- function() {
+  tibble::tribble(
+    ~code, ~label,
+    "ST",  "Streets",
+    "HI",  "Highways",
+    "UTR", "Utility roads",
+    "UR",  "Unclassified roads",
+    "CON", "Connector roads",
+    "BT",  "Bridges and tunnels"
+  )
+}
+
 #' The modern Road Network File street class vocabulary
 #'
 #' Common to 2011 onward, and revised twice within it: 2016 adds `95` alongside
@@ -401,10 +469,12 @@ cs_class_domain <- function(vintage) {
     cs_domain_snf_class()
   } else if (vintage == 2001L) {
     cs_domain_rnf_2001_class()
+  } else if (vintage == 2005L) {
+    cs_domain_rnf_2005_class()
   } else if (identical(src$product[1], "RNF") && vintage >= 2011L) {
     cs_domain_rnf_class(vintage)
   } else {
-    # 2005-2010 document no class table and 2006 ships no class column.
+    # 2006-2010 ship no class column.
     NULL
   }
   if (is.null(d)) NULL else cs_domain_disambiguate(d)
@@ -522,24 +592,24 @@ cs_label_vintage <- function(con, table, vintage) {
 #'
 #' The vocabularies are genuinely per-vintage. 2016 defines class `95`
 #' identically to `90`; 2021 retires `95` and adds `87` for winter roads; 2001
-#' uses a numeric vocabulary with no code in common with 2011 onward; and the
-#' 1991 and 1996 Street Network Files classify *features*, not roads, so most of
-#' their vocabulary is watercourses, railways and boundaries. Which of those
-#' values count as road is [canstreet_road_classes()]; applying it is
-#' [get_road_network()] and its `roads_only` argument.
+#' uses a numeric vocabulary with no code in common with 2011 onward; 2005 has
+#' six classes of its own and no rank; and the 1991 and 1996 Street Network
+#' Files classify *features*, not roads, so most of their vocabulary is
+#' watercourses, railways and boundaries. Which of those values count as road is
+#' [canstreet_road_classes()]; applying it is [get_road_network()] and its
+#' `roads_only` argument.
 #'
-#' Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
-#' reference guides document no class or rank table. Those vintages keep the
-#' codes the source files carry, as does any individual code its vintage's guide
-#' omits -- the `OB` and `Z` of the 1971 to 1981 Area Master Files, for
-#' instance.
+#' Vintages 2006 to 2010 return zero rows: Statistics Canada stopped maintaining
+#' the class after 2005 and those files carry neither column. A code its
+#' vintage's guide omits is kept as the source file carries it -- the `OB` and
+#' `Z` of the 1971 to 1981 Area Master Files, for instance.
 #'
 #' Sources, all primary: "List A" of the Street Network File User Guide for
 #' 1991 and 1996 and of The Area Master File User Guide (1988) for 1986, which
 #' are the same list; the feature-type and sub-type columns of that list for
 #' 1971 to 1981, whose files qualify a class no further and for which no guide
 #' survives; the reference guide shipped inside each Road Network File archive
-#' for 2001, 2011 and 2016; and the 2021 Census attribute domain values page for
+#' for 2001, 2005, 2011 and 2016; and the 2021 Census attribute domain values page for
 #' 2021. Where a vintage gives two codes the same description -- 2016's `90` and
 #' `95` are both "Unknown" -- each keeps the published wording with its own code
 #' appended, because a DuckDB `ENUM` cannot hold the same value twice.

@@ -59,8 +59,16 @@ test_that("the vocabularies are per-vintage, not shared across the era", {
   expect_false(anyDuplicated(d86$code) > 0)
   expect_true(all(nchar(d86$code) %in% c(1L, 2L, 4L)))
 
-  # And these have no published vocabulary at all.
-  expect_null(cs_class_domain(2006))
+  # 2005 has six classes of its own, from that year's guide, and no rank.
+  d05 <- cs_class_domain(2005)
+  expect_setequal(d05$code, c("ST", "HI", "UTR", "UR", "CON", "BT"))
+  expect_identical(cs_class_label(2005, c("ST", "UTR")),
+                   c("Streets", "Utility roads"))
+  expect_false(any(d05$code %in% cs_class_domain(2011)$code))
+  expect_null(cs_rank_domain(2005))
+
+  # And these have no vocabulary at all: 2006 to 2010 carry neither column.
+  for (v in 2006:2010) expect_null(cs_class_domain(v), info = as.character(v))
   expect_null(cs_rank_domain(2006))
   expect_null(cs_rank_domain(1996))
 })
@@ -78,6 +86,7 @@ test_that("canstreet_domains() reports what is stored", {
   expect_named(all, c("vintage", "domain", "code", "label"))
   expect_setequal(unique(all$domain), c("class", "rank"))
   expect_false(2006L %in% all$vintage)
+  expect_identical(canstreet_domains(2005)$domain, rep("class", 6L))
   expect_true(all(c(1971L, 1976L, 1981L, 1986L) %in% all$vintage))
 
   expect_identical(nrow(canstreet_domains(2006)), 0L)

@@ -27,24 +27,24 @@ to use.
 \details{
 The vocabularies are genuinely per-vintage. 2016 defines class \code{95}
 identically to \code{90}; 2021 retires \code{95} and adds \code{87} for winter roads; 2001
-uses a numeric vocabulary with no code in common with 2011 onward; and the
-1991 and 1996 Street Network Files classify \emph{features}, not roads, so most of
-their vocabulary is watercourses, railways and boundaries. Which of those
-values count as road is \code{\link[=canstreet_road_classes]{canstreet_road_classes()}}; applying it is
-\code{\link[=get_road_network]{get_road_network()}} and its \code{roads_only} argument.
+uses a numeric vocabulary with no code in common with 2011 onward; 2005 has
+six classes of its own and no rank; and the 1991 and 1996 Street Network
+Files classify \emph{features}, not roads, so most of their vocabulary is
+watercourses, railways and boundaries. Which of those values count as road is
+\code{\link[=canstreet_road_classes]{canstreet_road_classes()}}; applying it is \code{\link[=get_road_network]{get_road_network()}} and its
+\code{roads_only} argument.
 
-Vintages with no published vocabulary return zero rows: 2005 to 2010, whose
-reference guides document no class or rank table. Those vintages keep the
-codes the source files carry, as does any individual code its vintage's guide
-omits -- the \code{OB} and \code{Z} of the 1971 to 1981 Area Master Files, for
-instance.
+Vintages 2006 to 2010 return zero rows: Statistics Canada stopped maintaining
+the class after 2005 and those files carry neither column. A code its
+vintage's guide omits is kept as the source file carries it -- the \code{OB} and
+\code{Z} of the 1971 to 1981 Area Master Files, for instance.
 
 Sources, all primary: "List A" of the Street Network File User Guide for
 1991 and 1996 and of The Area Master File User Guide (1988) for 1986, which
 are the same list; the feature-type and sub-type columns of that list for
 1971 to 1981, whose files qualify a class no further and for which no guide
 survives; the reference guide shipped inside each Road Network File archive
-for 2001, 2011 and 2016; and the 2021 Census attribute domain values page for
+for 2001, 2005, 2011 and 2016; and the 2021 Census attribute domain values page for
 2021. Where a vintage gives two codes the same description -- 2016's \code{90} and
 \code{95} are both "Unknown" -- each keeps the published wording with its own code
 appended, because a DuckDB \code{ENUM} cannot hold the same value twice.

@@ -3,7 +3,7 @@ test_that("every published class code is categorized exactly once", {
     cats <- cs_class_categories(v)
     dom <- cs_class_domain(v)
     if (is.null(cats)) {
-      # 2005-2010 carry no class column and document no vocabulary.
+      # 2006-2010 carry no class column.
       expect_null(dom, info = as.character(v))
       next
     }
@@ -71,8 +71,10 @@ test_that("a road that was not built yet is a road with a status", {
 })
 
 test_that("each vintage is restricted to its own idea of a road", {
-  # 2005 to 2010 carry no class column: they are roads already.
+  # 2006 to 2010 carry no class column: they are roads already. 2005 has one,
+  # and every class in it is a road, so it needs no filter either.
   expect_null(cs_road_class_sql(2006))
+  expect_null(cs_road_class_sql(2005))
 
   # The Street Network Files keep the unclassed streets, which are the ordinary
   # ones, plus the classes that are also road. The predicate names the labels,
@@ -203,8 +205,15 @@ test_that("canstreet_road_classes reports what each vintage keeps", {
   expect_named(canstreet_road_classes(2006),
                c("vintage", "code", "label", "category", "status", "road"))
 
+  # 2005 is the one release before 2011 with a class column: six classes, all
+  # of them road.
+  r05 <- canstreet_road_classes(2005)
+  expect_setequal(r05$code, c("ST", "HI", "UTR", "UR", "CON", "BT"))
+  expect_true(all(r05$road))
+  expect_identical(r05$label[r05$code == "ST"], "Streets")
+
   expect_true(all(cs_sources()$vintage %in%
-                    c(canstreet_road_classes()$vintage, 2005:2010)))
+                    c(canstreet_road_classes()$vintage, 2006:2010)))
   expect_error(canstreet_road_classes(1900), "No road network file")
 })
 

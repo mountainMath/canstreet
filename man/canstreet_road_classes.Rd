@@ -47,8 +47,9 @@ across years, because the same word does not mean the same thing twice here:
 other" is the Klondike and Alaska highways, and 2021's "Reserve / Trail" is
 92,000 km of forest service road.
 
-Vintages 2005 to 2010 return zero rows: they carry no class column, and
-everything in them is road.
+Vintages 2006 to 2010 return zero rows: they carry no class column, and
+everything in them is road. So is everything in 2005, which has six classes
+and no way of marking a road that was not yet built.
 }
 \examples{
 # What 1996 throws away, and what it keeps.

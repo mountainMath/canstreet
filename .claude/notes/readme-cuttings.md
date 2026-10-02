@@ -156,13 +156,14 @@ early area master file codes the guide does not account for -- the codes are kep
   p. 19) defines six classes, and the file carries exactly those six: `ST` streets, `HI` highways,
   `UTR` utility roads (not addressable), `UR` unclassified roads, `CON` connector roads (not
   addressable), `BT` bridges and tunnels (not addressable). The guide adds that "road classification
-  has not been maintained" and that roads in that release "are not ranked". The package still
-  imports them as bare codes; `R/domains.R` says 2005 to 2010 document no class table, which is true
-  of 2006 to 2010 only.
+  has not been maintained" and that roads in that release "are not ranked". `R/domains.R` now carries
+  them as `cs_domain_rnf_2005_class()`, and all six count as road.
 - **2006 to 2010 have nothing to label.** None of the five files has a class or rank column; the
   2006 guide says the attribute "is no longer maintained and has subsequently been removed".
-- **The two early area master file codes, `Z` and `OB`, are still unexplained.** No delivered
-  document defines either for 1971 to 1981.
+- **Of the two early area master file codes, `OB` has one secondary definition and `Z` none.** No
+  delivered document defines either for 1971 to 1981. A 1982 Université de Montréal guide gives
+  `O B` as "autre frontière statistique"; nothing gives `Z`. The package keeps both bare. The
+  source and what it does and does not establish are in `corpus-facts.md`.
 
 ## Why CanVec is not a fourth source
 
