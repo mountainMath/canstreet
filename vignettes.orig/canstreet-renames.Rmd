@@ -13,12 +13,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.path = "canstreet-renames-")
 ```
 
-`build_temporal_network()` answers when a road was first and last mapped. The
-crosswalk it writes alongside answers a different question: what the road was
-*called* in each of those years. Sequencing those names and diffing them finds
-renamings --- but most of what the diff returns is not a road changing its name,
-it is Statistics Canada changing how it writes one. This vignette peels those
-layers off in order, over one city, until what is left is worth reading.
+To showcase what else can be done with the **canstreet** package we give an example of systematically detecting renaming of roads. For this we take the temporal matching of roads and compare the names of the associated segments in each year. To be useful this needs to distinguish changes in writing of the same name from actual renamings. Most of what a naive diff returns is Statistics Canada changing how names were written. This vignette peels those layers off in order, over one city, until what is left is worth reading.
 
 ```{r library, message = FALSE}
 library(canstreet)
@@ -28,11 +23,7 @@ library(ggplot2)
 
 ## The region
 
-Build over the CMA and read over the city. The build needs the wider region ---
-sources are staged against the area buffered outward, so a road at the city
-limit still has its counterpart to match against --- but the naming conventions
-worth reading are one municipality's, and fifty years of a single street grid
-is a small enough corpus to check by eye.
+We pick Vancouver for this example and re-use the temporal build at the CMA to look at road names at the city level.
 
 ```{r build, message = FALSE}
 cma <- cancensus::get_statcan_geographies("2021", level = "CMA", type = "digital") |>
@@ -61,7 +52,7 @@ columns, so an attribute filter would drop exactly the oldest segments.
 ## Each year holds its own name
 
 A crosswalk row is one segment in one year, and `src_name` is what *that year's*
-file called it --- not what the newest year calls it, which is the `name` on the
+file called it, while the current name which is the `name` on the
 segment itself. So a segment that was renamed carries the whole sequence:
 
 ```{r one-segment}
@@ -87,7 +78,7 @@ sources |>
 That is a block of Kent Avenue on the Fraser, called `KENT` in every file from
 1971 to 2011 but one, `NORTH KENT` in 1996 alone, and `E Kent` from 2016 on.
 
-Two things to read off it. `source_file` is part of the identity, not
+Note that `source_file` is part of the identity, not
 decoration: the Area Master and Street Network Files number each source file
 from scratch, so it takes `(source_file, source_id)` to name an arc of a given
 year.
@@ -96,7 +87,7 @@ And `match_kind` is `geometry` on every row before 2016. `spine` is the year the
 geometry came from, `geometry+name` is a match where the two files agreed on the
 name, and **`geometry` is a match where they did not** --- the arcs sit within
 the calibrated tolerance and run the same way, but are named differently. That
-is the rename signal, and it is the only one there is: the name rescue joins on
+is the rename signal, and it is the only one in this case: the name rescue joins on
 exact name equality, so by construction it can never match across a rename.
 
 ## Sequencing the names
