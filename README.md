@@ -4,7 +4,7 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-This package facilitates downloading and processing the historical Statistics Canada road/street network files. This enables understanding how the road network has evolved over time, which can be useful for a range of analysis applications, including in economics, urban planning, transportation studies, and historical research.
+This package facilitates downloading and processing the historical Statistics Canada road/*street network files*. This enables understanding how the road network has evolved over time, which can be useful for a range of analysis applications, including in economics, urban planning, transportation studies, and historical research.
 
 The package provides a uniform base for this to enable reproducible and collaborative work in this space.
 
@@ -12,7 +12,7 @@ The package provides a uniform base for this to enable reproducible and collabor
 
 The package provides basic functionality:
 
-* Download and cache the historical road/street network files from Statistics Canada or from a custom hosted archive for older data that's only available via EFT.
+* Download and cache the historical road *Road Network Files*, *street network files*, and *Area Master Files* from Statistics Canada or from a custom hosted archive for older data that's only available via EFT.
 * Filter the features into streets and roads, boundaries, and other features.
 * Identify common road/street segments across different years even when geocoding accuracy has changed over time.
 * Create a temporally unified street network dataset that tags segments according to the years they were present in the network.
@@ -145,10 +145,10 @@ More details on how this works and how to use it can be found in the function do
 
 | Vintages | Product | Coverage | Source |
 |---|---|---|---|
-| 1971, 1976, 1981, 1986 | Area Master File | Large urban centres | MountainMath (the Statistics Canada files, hosted) |
-| 1991, 1996 | Street Network File | Large urban centres | Abacus Data Network (UBC) |
-| 2001 | Road Network File (92F0157GIE) | National | Statistics Canada |
-| 2005-2025 | Road Network File (92-500-X) | National | Statistics Canada |
+| 1971, 1976, 1981, 1986 | *Area Master File* | Large urban centres | MountainMath (the Statistics Canada files, hosted) |
+| 1991, 1996 | *Street Network File* | Large urban centres | Abacus Data Network (UBC) |
+| 2001 | *Road Network File* (92F0157GIE) | National | Statistics Canada |
+| 2005-2025 | *Road Network File* (92-500-X) | National | Statistics Canada |
 
 ### Lineage
 
@@ -157,7 +157,7 @@ Canada's [2006 Census Dictionary note on the road network
 file](https://www12.statcan.gc.ca/census-recensement/2006/ref/dict/geo041a-eng.cfm) and [Census Dictionary entry for the Road Network
 File](https://www12.statcan.gc.ca/census-recensement/2011/ref/dict/geo041-eng.cfm) for details. Users should be aware of the changing coverage over time.
 
-Two caveats from the dictionary entries carry straight into any analysis of change over
+Important caveats from the dictionary entries are important for understanding change over
 time. Statistics Canada states that **"topological accuracy takes precedence
 over absolute positional accuracy"**: the files are built for census enumeration, so
 the relative position of features is maintained and their absolute position is
@@ -171,21 +171,21 @@ centres of Canada", and the files bear it out: 74% of 2011 arcs inside a census
 metropolitan area or agglomeration carry one against 43% outside (2016: 71% and
 49%), and roughly three quarters of the country's road length is outside one.
 
-Older Area Master Files come in legacy formats that are parsed with a custom reader via the `read_amf()` function that might be of use in other projects dealing with legacy spatial data.
+Older *Area Master Files* come in legacy formats that are parsed with a custom reader via the `read_amf()` function that might be of use in other projects dealing with legacy spatial data.
 
-There is a structural break in the provenance of the data, in [2001 StatCan reports](https://www12-2021.statcan.gc.ca/english/census01/products/reference/dict/geo041.htm) the Road Network Files "are derived from the
+There is a structural break in the provenance of the data, in [2001 StatCan reports](https://www12-2021.statcan.gc.ca/english/census01/products/reference/dict/geo041.htm) the *Road Network Files* "are derived from the
 National Geographic Base (NGB)", and "much of the road network in the NGB was
-realigned to match Natural Resources Canada's National Topographic Database", breaking from the 1996 Street Network Files and resulting in "improved geometry of RNFs, compared to SNFs" that can lead to sizable spatial shifts, e.g. in Vancouver every pre-2001 vintage puts 15th Avenue some 40 m north
+realigned to match Natural Resources Canada's National Topographic Database", breaking from the 1996 *Street Network Files* and resulting in "improved geometry of RNFs, compared to SNFs" that can lead to sizable spatial shifts, e.g. in Vancouver every pre-2001 vintage puts 15th Avenue some 40 m north
 of where 2001 and everything after it put the same street.
 
 
 ### Beyond roads
 
-The early vintages carry more than roads. The area master files and the 1991
-and 1996 Street Network Files are a full topographic base rather than a road
+The early vintages carry more than roads. The *Area Master Files* and the 1991
+and 1996 *Street Network Files* are a full topographic base rather than a road
 network: watercourses, railways, hydro lines, census-boundary arcs and the
 outlines of parks, golf courses and airports are all carried as arcs, about a
-third of the 1996 file's 160,000 km and a share of the area master files that
+third of the 1996 file's 160,000 km and a share of the *Area Master Files* that
 grows with each census: shorelines, creeks, railways and municipal boundaries
 account for 6,035 of 1971's 31,882 km, 15,241 of 1976's 65,709 km, 19,663 of
 1981's 80,100 km and 49,334 of 1986's 135,232 km. 2001 carries the boundary
