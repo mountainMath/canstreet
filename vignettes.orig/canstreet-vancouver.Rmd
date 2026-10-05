@@ -13,14 +13,9 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
                       fig.path = "canstreet-vancouver-")
 ```
 
-The Calgary vignette explains a build; this one reads one. It is the eleven
-census years from 1971 to 2021, in four formats --- mainframe flat files no GIS
-driver opens, Street Network File coverages, a MapInfo interchange pair, and
-Road Network File shapefiles --- which the package makes irrelevant to the
-caller. Vancouver is the region to read it over because its Area Master Files
-reach well beyond the city from the start, twelve municipal files of them in
-1971, so half a century of one metropolitan area is in view from the first
-year.
+
+Vancouver provides a good test case to showcase some of the package functionality. In the early years the *Area Master Files* provide data on one municipality at a time, and contains several separate municipalities within Metro Vancouver. **canstreet** harmonizes all of this into a single database.
+
 
 
 ```{r library, message = FALSE}
@@ -29,7 +24,7 @@ library(dplyr)
 library(ggplot2)
 ```
 
-## A region to work in
+## Metro Vancouver
 
 As in the Calgary vignette, one fixed polygon is stamped across every year
 rather than filtering on a region attribute, which the pre-2011 files do not
@@ -103,7 +98,7 @@ list_road_network_vintages() |>
 ```
 
 A road in Langley that first appears in 1986 may well have been there in 1971,
-simply outside what anyone had digitized. Growth and coverage are confounded,
+simply outside what StatCan had digitized. Growth and coverage are confounded,
 and matching cannot separate them. The kilometres present in each year stack
 both effects:
 
@@ -202,10 +197,7 @@ two files name alike. The four Area Master Files come in between 10.8 m and
 registration; 2011 and 2016 share 2021's base geometry, which is why they
 calibrate to the 10 m floor.
 
-That is Vancouver's result and not a property of the product. Over Calgary the
-same four years disagree with 2021 by 17 m to 20 m and sit systematically to one
-side of it, which the build there warns about --- see
-`vignette("canstreet-temporal")`.
+Vancouver differs here from Calgary, which we have found to have larger systematic geographic shifts in oder data. (see `vignette("canstreet-temporal")`)
 
 The crosswalk records how each year's segments were matched:
 
@@ -222,10 +214,8 @@ than folded in, so a stricter reading is a filter away.
 
 ## The raw Area Master File
 
-No GIS driver opens the Area Master File --- fixed-width mainframe records, one
-flat file per municipality, the coordinates written out as digits --- so the
-package parses it. `read_amf()` exposes it directly, as segments or as the node
-records the file stores:
+The old *Area Master Files* come in a legacy GIS format, the package implements a custom parser `read_amf()` to access these.^[Of note, some data rehosted on Borealis Dataverse include converted files next to the original legacy format, but some of these conversions are garbled. Maintaing readers of legacy file formats remains an important piece of data infrastructure to guarantee data integrity.]
+
 
 ```{r read-amf}
 amf <- canstreet_download(1971)
