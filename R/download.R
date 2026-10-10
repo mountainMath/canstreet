@@ -81,17 +81,42 @@ canstreet_download <- function(vintage,
   # with `200 OK, text/html`. download.file() would happily save that ~4 KB of
   # HTML as a .zip, and the failure would only surface much later as an
   # unreadable archive. Probe before committing to the download.
-  if (identical(src$host, "statcan") && any(!have) &&
-      !cs_url_is_available(src$resource)) {
-    stop(cs_network_error(paste0(
-      "Statistics Canada is not serving a road network file at '",
-      src$resource, "'.\nThe release may have been moved or withdrawn; if the ",
-      "URL has changed, please file an issue against canstreet.")))
+  #
+  # A bot challenge in front of the file (see `cs_headers_are_a_challenge()`)
+  # is not a missing release: a browser still gets the file, so the error says
+  # where to fetch it and where to put it. A failed fetch from StatCan says the
+  # same. Both are decided on what the server answers now, so nothing needs
+  # undoing when the challenge goes away.
+  is_statcan <- identical(src$host, "statcan")
+  if (is_statcan && any(!have)) {
+    probe <- cs_probe_url(src$resource)
+    if (identical(probe, "challenge")) {
+      stop(cs_manual_download_error(
+        src$resource, todo$path[1],
+        paste0("Statistics Canada is answering automated requests for the ",
+               src$vintage, " road network file with a browser check ",
+               "(Cloudflare), so canstreet cannot download it.")))
+    }
+    if (!identical(probe, "archive")) {
+      stop(cs_network_error(paste0(
+        "Statistics Canada is not serving a road network file at '",
+        src$resource, "'.\nThe release may have been moved or withdrawn; if ",
+        "the URL has changed, please file an issue against canstreet.")))
+    }
   }
 
   for (i in which(!have)) {
     cs_message(quiet, "  ", todo$filename[i])
-    cs_download(todo$url[i], todo$path[i], quiet = TRUE)
+    if (is_statcan) {
+      tryCatch(
+        cs_download(todo$url[i], todo$path[i], quiet = TRUE),
+        canstreet_network_error = function(e) {
+          stop(cs_manual_download_error(todo$url[i], todo$path[i],
+                                        conditionMessage(e)))
+        })
+    } else {
+      cs_download(todo$url[i], todo$path[i], quiet = TRUE)
+    }
   }
 
   tibble::tibble(

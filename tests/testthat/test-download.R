@@ -35,7 +35,7 @@ test_that("the availability probe reads a ranged response, not just a 200", {
 test_that("an unreachable host degrades to a classed condition", {
   cache <- withr::local_tempdir()
   local_mocked_bindings(
-    cs_url_is_available = function(url) TRUE,
+    cs_probe_url = function(url) "archive",
     cs_download = function(url, destfile, quiet = FALSE, ...)
       stop(cs_network_error("Could not resolve host: www12.statcan.gc.ca"))
   )
@@ -54,7 +54,7 @@ test_that("a withdrawn StatCan release is reported, not silently saved", {
   # StatCan serves a missing release as a 302 to a landing page returned with
   # 200 OK and text/html, which download.file() would happily write as a .zip.
   local_mocked_bindings(
-    cs_url_is_available = function(url) FALSE,
+    cs_probe_url = function(url) "missing",
     cs_download = function(url, destfile, quiet = FALSE, ...)
       stop("cs_download() should not be reached")
   )
@@ -67,13 +67,71 @@ test_that("a withdrawn StatCan release is reported, not silently saved", {
     "moved or withdrawn")
 })
 
+test_that("a Cloudflare challenge is told apart from a missing release", {
+  # What www12.statcan.gc.ca answered a ranged GET with on 2026-10-09.
+  challenge <- paste0(
+    "HTTP/2 403\r\n",
+    "content-type: text/html; charset=UTF-8\r\n",
+    "content-length: 23628\r\n",
+    "cf-mitigated: challenge\r\n",
+    "server: cloudflare\r\n\r\n")
+  expect_true(cs_headers_are_a_challenge(challenge))
+  expect_false(cs_headers_are_an_archive(challenge))
+
+  # The soft 404 is not a challenge, and neither is a real archive.
+  expect_false(cs_headers_are_a_challenge(paste0(
+    "HTTP/1.1 200 OK\r\n",
+    "Content-Type: text/html; charset=UTF-8\r\n",
+    "Content-Length: 4099\r\n\r\n")))
+  expect_false(cs_headers_are_a_challenge(paste0(
+    "HTTP/1.1 206 Partial Content\r\n",
+    "Content-Type: application/x-zip-compressed\r\n",
+    "Content-Range: bytes 0-0/262144000\r\n\r\n")))
+})
+
+test_that("a challenged StatCan file comes with manual-download instructions", {
+  cache <- withr::local_tempdir()
+  local_mocked_bindings(
+    cs_probe_url = function(url) "challenge",
+    cs_download = function(url, destfile, quiet = FALSE, ...)
+      stop("cs_download() should not be reached")
+  )
+
+  err <- expect_error(
+    canstreet_download(2021, quiet = TRUE, cache_path = cache),
+    class = "canstreet_network_error")
+  msg <- conditionMessage(err)
+  dest <- file.path(cache, "downloads", "2021", "lrnf000r21a_e.zip")
+  expect_match(msg, "browser check", fixed = TRUE)
+  expect_match(msg, cs_source(2021)$resource, fixed = TRUE)
+  expect_match(msg, file.path(normalizePath(dirname(dest)), basename(dest)),
+               fixed = TRUE)
+
+  # Depositing the file there, as the message says, is all it takes.
+  file.create(dest)
+  out <- canstreet_download(2021, quiet = TRUE, cache_path = cache)
+  expect_identical(out$path, dest)
+})
+
+test_that("a failed StatCan fetch also says how to fetch it by hand", {
+  cache <- withr::local_tempdir()
+  local_mocked_bindings(
+    cs_probe_url = function(url) "archive",
+    cs_download = function(url, destfile, quiet = FALSE, ...)
+      stop(cs_network_error("Could not download it."))
+  )
+
+  expect_error(canstreet_download(2021, quiet = TRUE, cache_path = cache),
+               "Could not download it\\.\\nTo import this vintage")
+})
+
 test_that("a cached archive is not re-downloaded", {
   cache <- withr::local_tempdir()
   dir.create(file.path(cache, "downloads", "2021"), recursive = TRUE)
   file.create(file.path(cache, "downloads", "2021", "lrnf000r21a_e.zip"))
 
   local_mocked_bindings(
-    cs_url_is_available = function(url) stop("should not probe"),
+    cs_probe_url = function(url) stop("should not probe"),
     cs_download = function(url, destfile, quiet = FALSE, ...)
       stop("should not download")
   )
@@ -178,7 +236,7 @@ test_that("a hosted Area Master File vintage is fetched into the usual cache", {
   local_mocked_bindings(
     # The probe is for Statistics Canada's soft 404; a missing object on the
     # hosted bucket is a real one.
-    cs_url_is_available = function(url) stop("should not probe"),
+    cs_probe_url = function(url) stop("should not probe"),
     cs_download = function(url, destfile, quiet = FALSE, ...) {
       asked <<- c(asked, url)
       file.create(destfile)

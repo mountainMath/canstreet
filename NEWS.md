@@ -60,6 +60,12 @@ matches segments across years into a temporally unified network.
   `list_canstreet_cache()` shows what has been imported, and
   `remove_canstreet_cache()` removes vintages. Source archives are kept, so the
   database can be rebuilt without downloading again.
+* When Statistics Canada answers a download with a Cloudflare browser check
+  (as www12.statcan.gc.ca does for scripted requests since October 2026),
+  `canstreet_download()` and `get_road_network()` stop with the file's URL and
+  the exact cache path to save it to from a browser; the next call imports it.
+  The check is made on each download, so this stops once the challenge is
+  lifted.
 
 ## Known limitations
 

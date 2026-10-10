@@ -66,7 +66,22 @@ cs_headers_are_an_archive <- function(headers) {
   is_archive && (is.na(size) || size > 1e6)
 }
 
-# TRUE if `url` looks like it really serves an archive.
+# Is Statistics Canada answering with a bot challenge rather than the file?
+#
+# Since October 2026 Cloudflare fronts www12.statcan.gc.ca and answers scripted
+# requests with an interactive challenge: `403`, `text/html`, and the header
+# `cf-mitigated: challenge`, which is Cloudflare's documented marker for it.
+# A browser passes the challenge and gets the file. Keying on the header, not
+# on a date or a flag, means the manual-download route switches itself off the
+# moment the challenge is lifted.
+cs_headers_are_a_challenge <- function(headers) {
+  h <- curl::parse_headers_list(headers)
+  identical(tolower(h[["cf-mitigated"]] %||% ""), "challenge")
+}
+
+# What `url` serves: `"archive"`, `"challenge"` (a bot challenge stands in
+# front of it; see above) or `"missing"` (anything else -- the soft 404, an
+# HTTP error, an unreachable host).
 #
 # This asks for the first byte rather than sending a HEAD. Statistics Canada
 # used to answer HEAD on these files and no longer does -- as of 2026-08-29 it
@@ -76,14 +91,33 @@ cs_headers_are_an_archive <- function(headers) {
 # case of a server that ignores `Range`: curl refuses a body it is told up
 # front is larger, rather than pulling a 250 MB archive into memory to decide
 # whether it exists.
-cs_url_is_available <- function(url) {
+cs_probe_url <- function(url) {
   res <- tryCatch(
     curl::curl_fetch_memory(url, curl::new_handle(range = "0-0",
                                                   followlocation = TRUE,
                                                   maxfilesize = 1e6)),
     error = function(e) NULL)
-  if (is.null(res)) return(FALSE)
-  cs_headers_are_an_archive(rawToChar(res$headers))
+  if (is.null(res)) return("missing")
+  headers <- rawToChar(res$headers)
+  if (cs_headers_are_an_archive(headers)) return("archive")
+  if (cs_headers_are_a_challenge(headers)) return("challenge")
+  "missing"
+}
+
+# The error for a file a browser can fetch and this package cannot: where to
+# get it, and the exact path to put it at. `canstreet_download()` takes any
+# file already at that path as the download, so the next call imports it.
+cs_manual_download_error <- function(url, path, why) {
+  cs_network_error(paste0(
+    why, "\n",
+    "To import this vintage, download the file in a web browser and put it in ",
+    "the canstreet cache:\n",
+    "  1. Open ", url, "\n",
+    "  2. Save it, still zipped and under its own name, as\n",
+    "     ", file.path(normalizePath(dirname(path)), basename(path)), "\n",
+    "     (the directory already exists; Safari unzips downloads unless ",
+    "\"Open 'safe' files after downloading\" is turned off)\n",
+    "  3. Run the same call again: canstreet finds the file and imports it."))
 }
 
 # Low-level extractor: zip::unzip() first (locale-agnostic, handles the
