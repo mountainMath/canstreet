@@ -45,15 +45,11 @@ city <- get_temporal_network("vancouver", within = van_city) |>
 sources <- get_temporal_network_sources("vancouver")
 ```
 
-The subset is by polygon, not by attribute: `csduid_l` on a segment comes from
-the vintage its geometry was cut from, and the files before 2011 carry no region
-columns, so an attribute filter would drop exactly the oldest segments.
+To subset we use the geographic extent instead of the `csduid_l` attributes, as geographic boundaries of the City of Vancouver have shifted over this timeframe. Moreover, the files before 2011 do not carry region columns.
 
-## Each year holds its own name
+## Street names over time
 
-A crosswalk row is one segment in one year, and `src_name` is what *that year's*
-file called it, while the current name which is the `name` on the
-segment itself. So a segment that was renamed carries the whole sequence:
+A crosswalk row is one segment in one year, and `src_name` is the respective name for the given year. As example we select a segment that has gotten renamed twice over the given timespan.
 
 ```{r one-segment}
 # Looked up by what three of the files call it: a `segment_id` belongs to one
@@ -78,44 +74,40 @@ sources |>
 That is a block of Kent Avenue on the Fraser, called `KENT` in every file from
 1971 to 2011 but one, `NORTH KENT` in 1996 alone, and `E Kent` from 2016 on.
 
-Note that `source_file` is part of the identity, not
-decoration: the Area Master and Street Network Files number each source file
-from scratch, so it takes `(source_file, source_id)` to name an arc of a given
+Note that `source_id` is not necessarily unique by `vintage`, for older vintages the source data was split into several regional files each with their own `source_id` labelling, so it takes `(source_file, source_id)` to uniquely identify an arc of a given
 year.
 
 And `match_kind` is `geometry` on every row before 2016. `spine` is the year the
 geometry came from, `geometry+name` is a match where the two files agreed on the
-name, and **`geometry` is a match where they did not** --- the arcs sit within
+name, and **`geometry` is a match where names did not match** --- the arcs sit within
 the calibrated tolerance and run the same way, but are named differently. That
-is the rename signal, and it is the only one in this case: the name rescue joins on
-exact name equality, so by construction it can never match across a rename.
+is the rename signal we are targeting here.
 
 ## Sequencing the names
 
-Order each segment's rows by year, fold the names the way the matcher folds
-them, and compare each with the one before it. `strip_accents` and
-`regexp_replace` are DuckDB's, so the fold is computed in the database and is
-the same rule the build used:
+To track renamings we order each segments by year and compare names to lagged names. And we perform the same operation on cleaned names that catch common changes in spelling that don't correspond to unerlying name changes. DuckDB allows us to carry this out efficently at the database level.
+
 
 ```{r steps}
 steps <- sources |>
+  mutate(src_name=coalesce(src_name,"")) |>
   mutate(nm = regexp_replace(strip_accents(toupper(src_name)),
                              '^([0-9]+)(ST|ND|RD|TH)$', '\\1')) |>
   select(segment_id, vintage, src_name, nm, dist_m) |>
-  collect() |>
   filter(segment_id %in% city$segment_id) |>
-  arrange(segment_id, vintage) |>
-  group_by(segment_id) |>
-  mutate(prev_name = lag(src_name), prev_nm = lag(nm),
-         prev_year = lag(vintage), prev_dist = lag(dist_m)) |>
-  ungroup() |>
+  mutate(prev_name = lag(src_name, order_by = vintage), 
+         prev_nm = lag(nm, order_by = vintage),
+         prev_year = lag(vintage, order_by = vintage), 
+         prev_dist = lag(dist_m, order_by = vintage),
+         .by=segment_id) |>
   filter(!is.na(prev_name)) |>
+  collect() |>
   left_join(city |> select(segment_id, len_m), by = "segment_id")
 
 filled <- function(x) !is.na(x) & nzchar(x)
 
-raw    <- coalesce(steps$prev_name, "") != coalesce(steps$src_name, "")
-folded <- raw & coalesce(steps$prev_nm, "") != coalesce(steps$nm, "")
+row <- steps$prev_name !=steps$src_name
+folded <- raw & steps$prev_nm != steps$nm
 named  <- folded & filled(steps$prev_nm) & filled(steps$nm)
 
 funnel <- function(step, keep) {
@@ -129,22 +121,19 @@ bind_rows(
   funnel("... and neither side is blank", named))
 ```
 
-Most of the raw churn is case, accents and the numbered street the files respell
-at 2001 --- 1996 writes `MARINE` and `15`, 2001 writes `Marine` and `15th` ---
+Most of the raw churn is case, accents and the numbered street the files handle differently. For example 1996 writes `MARINE` and `15`, 2001 writes `Marine` and `15th`.
 all of which the matcher already folds away. The blank-sided rows are roads that
-gained or lost a name, which is a different event, so they go too.
+gained or lost a name, which is a different event, so we remove them too.
 
 ```{r changes}
 changes <- steps |> filter(named) |> rename(from = prev_nm, to = nm)
 ```
 
-## The street type moved out of the name
+## The street type
 
 The largest single pattern left is a street type appearing or disappearing at
 the end of a name. The older files often write the type into the name field as
-well as into `type`, and later ones stop. Because the crosswalk carries
-`source_file` beside `source_id`, the two source records can be read back
-directly and the claim checked rather than assumed:
+well as into `type`, and later ones stop. We can check this directly.
 
 ```{r type-moved}
 with_type <- function(year, nm) {
@@ -164,7 +153,7 @@ bind_rows(with_type(1991, "GRANDVIEW HIGHWAY"), with_type(1996, "GRANDVIEW"),
 ```
 
 1991 writes Grandview Highway's type twice, once spelled out in `name` and once
-as `HY` in `type`; 1996 keeps only the second. East Boulevard in Kerrisdale is
+as `HY` in `type`, whereas 1996 keeps only the second. East Boulevard in Kerrisdale is
 the same move one census earlier, `BOULEVARD` in the name giving way to `BV` in
 `type`. Same road, different filing.
 
@@ -278,9 +267,9 @@ and `LOST LAGOON` → `N LAGOON` are Stanley Park's internal roads being
 renamed twice; `OAK BRIDGE` → `OAK STREET BRIDGE` → `99` and `GRANVILLE` → `99`
 are the highway number displacing the street name.
 
+There is still room for improvement, 
 `LANEYS MILL` → `LAMEY'S MILL` is a Statistics Canada spelling error being
-fixed, which is a change to the record rather than to the road. The method
-cannot tell those apart and should not pretend to.
+fixed, and we could keep going and add further cleaning to get rid of these.
 
 ## Dating a renaming
 
@@ -331,9 +320,9 @@ ggplot(geo) +
 Renaming is thin, and it clusters: the waterfronts, the bridges and viaducts,
 Stanley Park, and the long 2016 run of Kent Avenue along the Fraser.
 
-## What this cannot see
+## Caveats
 
-Three limits, in order of how much they cost.
+The vignette demonstrates a basic workflow, there are several limits to keep in mind.
 
 **A road that was renamed *and* redrawn is invisible.** Rule A needs the two
 arcs within the calibrated tolerance; rule B needs the names to agree exactly.
