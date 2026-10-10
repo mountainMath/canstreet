@@ -28,7 +28,8 @@ library(ggplot2)
 
 ## Calgary as example
 
-Operating on the entire contry at once is very resource intensive, temporal harmonization is best done one region at a time.
+Operating on the entire country at once is very resource intensive, so temporal
+harmonization is best done one region at a time.
 
 `within` takes any `sf`, `sfc` or `bbox` object, and the same polygon is stamped
 across every year: Statistics Canada reuses `CSDUID` and `CMAUID` across
@@ -45,7 +46,9 @@ cma |> select(CMAUID, CMANAME) |> sf::st_drop_geometry()
 
 ## Building
 
-We choose all available census year vintages for this. Using instaed `NULL` uses whatever the cache holds, if named explicitly any vintage that is not present will get automatically imported in the process.
+We use all census-year vintages. Passing `NULL` instead uses whatever the cache
+holds; a vintage named explicitly that is not in the cache yet is imported
+automatically in the process.
 
 ```{r build, message = FALSE}
 vints <- c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016, 2021)
@@ -159,7 +162,7 @@ steady 11 to 15 m off, all in the same direction, which is a difference in
 registration rather than noise. The matcher does not correct a shift, it absorbs
 it --- those years calibrate to the 40 m ceiling, with `disagree_25` well above
 the later files' --- so treat a difference at that scale in 1971 to 1986 as
-unresolved. It shift that is present in Calgary in not universal, Vancouver's Area Master
+unresolved. The shift present in Calgary is not universal: Vancouver's Area Master
 Files register as well as any file before 2011 (`vignette("canstreet-vancouver")`).
 
 ## Road matching details
@@ -225,9 +228,11 @@ get_temporal_network("calgary") |>
 The grey core marks the 1971 start of the data series and the rings around it are the urban files following the city outward to 1996; the green grid at the edges of the
 frame is 2001 going national.
 
-## Roads that disappeard
+## Roads that disappeared
 
-Restricting ourselves to the national data 2006 onward (or alternatively to a sub-regions that covers all vintages) enables us to look at roads that showed up in 2006 but aren't in the 2021 data.
+Restricting ourselves to the national data from 2006 onward (or alternatively to
+a sub-region that all vintages cover) lets us look at roads that are present in
+2006 but not in the 2021 data.
 
 ```{r retired}
 retired <- get_temporal_network("calgary") |>
@@ -263,7 +268,11 @@ get_temporal_network("calgary") |>
            ylim = frame[c("ymin", "ymax")])
 ```
 
-One caveat is that roads may be mis-identified as retired if the matcher missed them. This should receive follow-up validation before relying on this further.
+One caveat is that a road may be misidentified as retired if the matcher missed
+it, so these results need validation before anything relies on them.
+
+A related check is the length with gaps: segments missing from a year that lies
+between their first and last appearance.
 
 
 ```{r gaps}

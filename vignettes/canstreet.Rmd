@@ -23,18 +23,19 @@ library(dplyr)
 ## Set a cache path
 
 A national vintage is 200–350 MB compressed and about 2.2 million segments, so
-`canstreet` caches the archives and the harmonized database. Set a directory
-once and it applies to every session:
+`canstreet` caches the archives and the harmonized database. The cache path is
+read from the `CANSTREET_CACHE_PATH` environment variable, which
+`set_canstreet_cache_path()` sets. With `install = TRUE` it also writes it to
+`.Renviron`, so it is available in all future sessions and does not need to be
+set again.
 
 
 ``` r
 set_canstreet_cache_path("~/data/canstreet", install = TRUE)
 ```
 
-Without one everything goes to `tempdir()`. `show_canstreet_cache_path()`
-reports what is in effect.
 
-## What is available
+## Available vintages
 
 
 ``` r
@@ -50,18 +51,21 @@ list_road_network_vintages() |>
 #>  5    1991 SNF     urban    EPSG:4267  TRUE    
 #>  6    1996 SNF     urban    EPSG:4267  TRUE    
 #>  7    2001 RNF     national EPSG:4269  TRUE    
-#>  8    2005 RNF     national EPSG:4269  FALSE   
+#>  8    2005 RNF     national EPSG:4269  TRUE    
 #>  9    2006 RNF     national EPSG:4269  TRUE    
 #> 10    2007 RNF     national EPSG:4269  FALSE   
 #> # ℹ 18 more rows
 ```
 
 The 1971 to 1986 Area Master Files and the 1991 and 1996 Street Network Files
-cover urban areas only; everything from 2001 on is national.
+cover urban areas only; everything from 2001 on is national. From 2005 on the
+files are annual; before that there is one per census year.
 
 ## Getting a vintage
 
-The first call downloads and imports; after that it is instant.
+`get_road_network()` is the universal way to access the road network data for a
+given vintage: if needed it fetches the data and parses it into a local
+database, and it hands back a lazy DuckDB table.
 
 
 ``` r
@@ -88,8 +92,9 @@ roads
 #> #   geom <list>
 ```
 
-The result is a lazy table over DuckDB, so this aggregation over 2.2 million
-segments runs in the database and only the answer comes back:
+Once downloaded, connecting to the database is instant. Chain `dplyr`
+operations before calling `collect()` so that they run in DuckDB, which keeps
+memory use low and execution fast.
 
 
 ``` r
@@ -163,19 +168,22 @@ plot(sf::st_geometry(downtown), col = "grey30", lwd = 0.6)
 <p class="caption">plot of chunk plot</p>
 </div>
 
-Geometry is stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), so `len_m`
+Geometry is always converted to and stored in EPSG:3347 (NAD83 / Statistics Canada Lambert), so `len_m`
 is metres for every vintage. `collect_road_network()` reprojects on request:
 
 
 ``` r
-sf::st_crs(collect_road_network(get_road_network(2021, within = bbox),
-                                crs = 4326))$epsg
+get_road_network(2021, within = bbox) |>
+  collect_road_network(crs = 4326) |>
+  sf::st_crs() |>
+  (\(x) x$epsg)()
 #> [1] 4326
 ```
 
 ## Comparing vintages
 
-Several years at once stack into one table:
+Calling `get_road_network()` with several vintages hands back one lazy table
+with the vintages stacked, so a query runs over all of them at once.
 
 
 ``` r
@@ -202,14 +210,14 @@ get_road_network(c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016,
 ```
 
 Nothing before 2001 is national, and the Area Master Files grow mostly by
-covering more places --- 34 municipal files in 1971, 194 in 1986 --- so the rise
-to 1996 is coverage before it is road. Segment counts do not compare across
-products either: 1986 holds more segments than 1991 over fewer kilometres,
+covering more places (34 municipal files in 1971, 194 in 1986), so most of the rise
+to 1996 is due to expanding coverage. Segment counts do not compare across
+products either. 1986 holds more segments than 1991 over fewer kilometres
 because an Area Master File segment is a single block face. And not every
 segment is a road: over a third of 1986's arcs are shorelines, boundaries and
 railways, and 2001's extra 400,000 km is census boundary topology.
-`roads_only = TRUE` drops both. The 2006–2021 drop is in the source data, not
-the import: 2006 carries far more very long arcs, which later releases split,
+Setting `roads_only = TRUE` drops both. The 2006–2021 drop is in the source data, not
+the import. 2006 carries far more very long arcs, which later releases split,
 reclassified or dropped.
 
 
@@ -226,15 +234,15 @@ get_road_network(c(2006, 2021)) |>
 #> 2    2021     13055 120875
 ```
 
-Identifiers are not documented as stable across vintages, so comparing years
-means matching geometry. `build_temporal_network()` does that and writes one
-table in which each segment carries the years it is present in --- see
-`vignette("canstreet-temporal")`.
+Identifiers are not stable across vintages, so comparing years
+is done by matching on geometry only. `build_temporal_network()` does that and writes one
+table in which each segment carries the years it is present in. For details,
+see the vignette on temporal matching, `vignette("canstreet-temporal")`.
 
 ## The harmonized schema
 
-Every vintage maps onto the same columns; one a vintage's files do not carry is
-`NA` throughout it rather than absent, so the union stays legal.
+Every vintage maps onto the same columns; where a vintage does not carry a
+column, its values are `NA`.
 
 
 ``` r
@@ -257,12 +265,14 @@ canstreet_schema()
 
 Source spellings differ by vintage — `arc_id` in 1991/1996, `RB_UID` in
 2001–2010, `NGD_UID` from 2011, `NGDUID` in 2016/2017 — and the importer
-resolves each by alias, not by era.
+resolves each by alias.
 
 ## Exporting
 
-`export_road_network()` writes GeoParquet with the CRS in its metadata, for use
-from Python, QGIS or DuckDB:
+Other systems such as Python or QGIS can read the same DuckDB file; its local
+path is the `path` element of `get_road_network_database()`. There is also an
+`export_road_network()` convenience function that exports the data to
+GeoParquet with the CRS in its metadata:
 
 
 ``` r
@@ -272,10 +282,12 @@ get_road_network(2021, within = bbox) |>
 
 ## Managing the cache
 
+Several convenience functions help manage the cache.
+
 
 ``` r
 list_canstreet_cache()
-#> # A tibble: 11 × 6
+#> # A tibble: 12 × 6
 #>    vintage n_segments n_archives raw_mb imported_at              package_version
 #>      <int>      <int>      <int>  <dbl> <chr>                    <chr>          
 #>  1    1971     215399          1   10.2 2026-10-01T14:26:44-0700 0.0.1          
@@ -285,10 +297,11 @@ list_canstreet_cache()
 #>  5    1991     599625         51   72.5 2026-08-29T12:49:40-0700 0.0.0.9000     
 #>  6    1996     629574         50   70.5 2026-08-29T12:46:01-0700 0.0.0.9000     
 #>  7    2001    2053112          1  250   2026-08-29T11:15:39-0700 0.0.0.9000     
-#>  8    2006    1869564          1  219.  2026-08-28T18:57:14-0700 0.0.0.9000     
-#>  9    2011    1973932          1  334.  2026-08-28T18:57:40-0700 0.0.0.9000     
-#> 10    2016    2163058          1  327.  2026-08-28T18:58:07-0700 0.0.0.9000     
-#> 11    2021    2242117          1  310.  2026-08-28T18:58:34-0700 0.0.0.9000
+#>  8    2005    1864299          1  254.  2026-10-01T17:30:49-0700 0.0.1          
+#>  9    2006    1869564          1  219.  2026-08-28T18:57:14-0700 0.0.0.9000     
+#> 10    2011    1973932          1  334.  2026-08-28T18:57:40-0700 0.0.0.9000     
+#> 11    2016    2163058          1  327.  2026-08-28T18:58:07-0700 0.0.0.9000     
+#> 12    2021    2242117          1  310.  2026-08-28T18:58:34-0700 0.0.0.9000
 ```
 
 `remove_canstreet_cache(vintage)` drops a vintage's table and keeps its

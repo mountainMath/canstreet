@@ -14,7 +14,8 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7,
 ```
 
 
-Vancouver provides a good test case to showcase some of the package functionality. In the early years the *Area Master Files* provide data on one municipality at a time, and contains several separate municipalities within Metro Vancouver. **canstreet** harmonizes all of this into a single database.
+Vancouver provides a good test case to showcase some of the package functionality. In the early years the *Area Master Files* cover one municipality per file, and
+Metro Vancouver spans several of them. **canstreet** harmonizes all of this into a single database.
 
 
 
@@ -197,7 +198,8 @@ two files name alike. The four Area Master Files come in between 10.8 m and
 registration; 2011 and 2016 share 2021's base geometry, which is why they
 calibrate to the 10 m floor.
 
-Vancouver differs here from Calgary, which we have found to have larger systematic geographic shifts in oder data. (see `vignette("canstreet-temporal")`)
+Vancouver differs here from Calgary, where we found larger systematic geographic shifts in the older data (see
+`vignette("canstreet-temporal")`).
 
 The crosswalk records how each year's segments were matched:
 
@@ -214,7 +216,7 @@ than folded in, so a stricter reading is a filter away.
 
 ## The raw Area Master File
 
-The old *Area Master Files* come in a legacy GIS format, the package implements a custom parser `read_amf()` to access these.^[Of note, some data rehosted on Borealis Dataverse include converted files next to the original legacy format, but some of these conversions are garbled. Maintaing readers of legacy file formats remains an important piece of data infrastructure to guarantee data integrity.]
+The old *Area Master Files* come in a legacy GIS format; the package implements a custom parser `read_amf()` to access these.^[Of note, some data rehosted on Borealis Dataverse include converted files next to the original legacy format, but some of these conversions are garbled. Maintaining readers of legacy file formats remains an important piece of data infrastructure to guarantee data integrity.]
 
 
 ```{r read-amf}

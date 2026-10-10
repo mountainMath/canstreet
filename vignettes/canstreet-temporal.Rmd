@@ -17,7 +17,6 @@ identifiers change scheme three times, and every arc is redrawn as digitizing
 improves. `build_temporal_network()` reconciles them into one table in which
 each segment carries the years it is present in.
 
-This vignette is precomputed, but the code is what you would run.
 
 
 ``` r
@@ -26,12 +25,15 @@ library(dplyr)
 library(ggplot2)
 ```
 
-## A region to work in
+## Calgary as example
+
+Operating on the entire country at once is very resource intensive, so temporal
+harmonization is best done one region at a time.
 
 `within` takes any `sf`, `sfc` or `bbox` object, and the same polygon is stamped
 across every year: Statistics Canada reuses `CSDUID` and `CMAUID` across
 boundary revisions, and the files before 2011 carry no region columns at all.
-Any source of a polygon will do --- here is the 2021 Calgary CMA from
+For this we use the 2021 Calgary CMA from
 `cancensus`, which needs no API key for geographies:
 
 
@@ -49,8 +51,9 @@ cma |> select(CMAUID, CMANAME) |> sf::st_drop_geometry()
 
 ## Building
 
-Name the years --- any two or more --- and anything not yet imported is
-downloaded first. `NULL` uses whatever the cache holds.
+We use all census-year vintages. Passing `NULL` instead uses whatever the cache
+holds; a vintage named explicitly that is not in the cache yet is imported
+automatically in the process.
 
 
 ``` r
@@ -269,10 +272,10 @@ steady 11 to 15 m off, all in the same direction, which is a difference in
 registration rather than noise. The matcher does not correct a shift, it absorbs
 it --- those years calibrate to the 40 m ceiling, with `disagree_25` well above
 the later files' --- so treat a difference at that scale in 1971 to 1986 as
-unresolved. It is Calgary's result, not the product's: Vancouver's Area Master
+unresolved. The shift present in Calgary is not universal: Vancouver's Area Master
 Files register as well as any file before 2011 (`vignette("canstreet-vancouver")`).
 
-## The matching, exposed
+## Road matching details
 
 `get_temporal_network_sources()` is the crosswalk --- one row per segment per
 year, naming the arc of that year's file it corresponds to, how far away it
@@ -321,11 +324,10 @@ get_temporal_network_sources("calgary") |>
 #> 1   12965 62345
 ```
 
-## The map
+## Mapping the results
 
 The harmonized network, coloured by the year each segment first appears. Most of
-the CMA's area is rural grid, so the maps here are framed on the City of Calgary
-by handing its bounding box to `coord_sf()`:
+the CMA's area is rural grid, so the maps here are framed on the City of Calgary.
 
 
 ``` r
@@ -360,13 +362,14 @@ get_temporal_network("calgary") |>
 <p class="caption">plot of chunk first-year-map</p>
 </div>
 
-The grey core is what the 1971 file held and the rings around it are the urban
-files following the city outward to 1996; the green grid at the edges of the
+The grey core marks the 1971 start of the data series and the rings around it are the urban files following the city outward to 1996; the green grid at the edges of the
 frame is 2001 going national.
 
-## What actually disappeared
+## Roads that disappeared
 
-Road that was there in 2006 and is not there now:
+Restricting ourselves to the national data from 2006 onward (or alternatively to
+a sub-region that all vintages cover) lets us look at roads that are present in
+2006 but not in the 2021 data.
 
 
 ``` r
@@ -403,7 +406,7 @@ retired |>
 ```
 
 Most of those 713 km lie outside the city, on the rural grid --- about 150 km
-are inside the city boundary. The same frame as before:
+are inside the city boundary. 
 
 
 ``` r
@@ -424,10 +427,12 @@ get_temporal_network("calgary") |>
 <p class="caption">plot of chunk map</p>
 </div>
 
-Retirement is a weaker claim than growth: a road the matcher missed looks
-identical to one that was removed. Segments whose year set has an interior gap
---- present in 1996 and 2021 but not 2006 --- measure how often that happens,
-since a road cannot un-exist and come back:
+One caveat is that a road may be misidentified as retired if the matcher missed
+it, so these results need validation before anything relies on them.
+
+A related check is the length with gaps: segments missing from a year that lies
+between their first and last appearance.
+
 
 
 ``` r
@@ -489,9 +494,6 @@ list_temporal_networks() |>
 A build is a pair of tables beside the vintages, so `remove_temporal_network()`
 drops it instantly, and removing a vintage removes the builds that used it.
 
-`within = NULL` builds nationally, but that is not yet the supported scale: a
-national two-vintage build spilled over 32 GB of DuckDB temporary storage here
-and did not finish. Use region-scoped builds.
 
 ## Attribution
 

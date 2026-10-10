@@ -49,7 +49,7 @@ To subset we use the geographic extent instead of the `csduid_l` attributes, as 
 
 ## Street names over time
 
-A crosswalk row is one segment in one year, and `src_name` is the respective name for the given year. As example we select a segment that has gotten renamed twice over the given timespan.
+A crosswalk row is one segment in one year, and `src_name` is the respective name for the given year. As an example we select a segment that was renamed twice over this time span.
 
 ```{r one-segment}
 # Looked up by what three of the files call it: a `segment_id` belongs to one
@@ -74,7 +74,9 @@ sources |>
 That is a block of Kent Avenue on the Fraser, called `KENT` in every file from
 1971 to 2011 but one, `NORTH KENT` in 1996 alone, and `E Kent` from 2016 on.
 
-Note that `source_id` is not necessarily unique by `vintage`, for older vintages the source data was split into several regional files each with their own `source_id` labelling, so it takes `(source_file, source_id)` to uniquely identify an arc of a given
+Note that `source_id` is not necessarily unique within a `vintage`: for older
+vintages the source data was split into several regional files, each with its
+own `source_id` numbering, so it takes `(source_file, source_id)` to uniquely identify an arc of a given
 year.
 
 And `match_kind` is `geometry` on every row before 2016. `spine` is the year the
@@ -85,7 +87,10 @@ is the rename signal we are targeting here.
 
 ## Sequencing the names
 
-To track renamings we order each segments by year and compare names to lagged names. And we perform the same operation on cleaned names that catch common changes in spelling that don't correspond to unerlying name changes. DuckDB allows us to carry this out efficently at the database level.
+To track renamings we order each segment's rows by year and compare each name
+with the one before it. We do the same on folded names, which catch common
+changes in spelling that do not correspond to an underlying name change. DuckDB
+lets us do this efficiently in the database.
 
 
 ```{r steps}
@@ -106,7 +111,7 @@ steps <- sources |>
 
 filled <- function(x) !is.na(x) & nzchar(x)
 
-row <- steps$prev_name !=steps$src_name
+raw    <- steps$prev_name != steps$src_name
 folded <- raw & steps$prev_nm != steps$nm
 named  <- folded & filled(steps$prev_nm) & filled(steps$nm)
 
@@ -121,8 +126,9 @@ bind_rows(
   funnel("... and neither side is blank", named))
 ```
 
-Most of the raw churn is case, accents and the numbered street the files handle differently. For example 1996 writes `MARINE` and `15`, 2001 writes `Marine` and `15th`.
-all of which the matcher already folds away. The blank-sided rows are roads that
+Most of the raw churn is case, accents and numbered streets, which the files
+write differently: 1996 writes `MARINE` and `15`, 2001 writes `Marine` and
+`15th`. The matcher already folds all of this away. The blank-sided rows are roads that
 gained or lost a name, which is a different event, so we remove them too.
 
 ```{r changes}
@@ -160,9 +166,9 @@ the same move one census earlier, `BOULEVARD` in the name giving way to `BV` in
 ## Peeling off the conventions
 
 Three rules take out the rest of the changes that are about spelling rather than
-naming. A deeper normalization that also ignores spacing, punctuation,
+naming: a deeper normalization that also ignores spacing, punctuation,
 spelled-out numbers and `NO.` prefixes (`SOUTH RIDGE`/`SOUTHRIDGE`,
-`133 A`/`133A`, `TENTH`/`10th`, `NO. 5`/`5`), and with it the Street Network
+`133 A`/`133A`, `TENTH`/`10th`, `NO. 5`/`5`) and tolerates the Street Network
 File's fixed-width name field, which truncates at twenty characters
 (`COLUMBIA QUEBEC CONN`/`COLUMBIA QUEBEC CON.`); the trailing street-type word
 above; and a distance cut, because a match 30 m away under a 38 m tolerance is
@@ -267,9 +273,9 @@ and `LOST LAGOON` → `N LAGOON` are Stanley Park's internal roads being
 renamed twice; `OAK BRIDGE` → `OAK STREET BRIDGE` → `99` and `GRANVILLE` → `99`
 are the highway number displacing the street name.
 
-There is still room for improvement, 
-`LANEYS MILL` → `LAMEY'S MILL` is a Statistics Canada spelling error being
-fixed, and we could keep going and add further cleaning to get rid of these.
+There is still room for improvement: `LANEYS MILL` → `LAMEY'S MILL` is a
+Statistics Canada spelling error being fixed, and further cleaning rules could
+remove cases like it.
 
 ## Dating a renaming
 
@@ -322,10 +328,12 @@ Stanley Park, and the long 2016 run of Kent Avenue along the Fraser.
 
 ## Caveats
 
-The vignette demonstrates a basic workflow, there are several limits to keep in mind.
+The vignette demonstrates a basic workflow; there are several limits to keep in
+mind.
 
-**A road that was renamed *and* redrawn is invisible.** Rule A needs the two
-arcs within the calibrated tolerance; rule B needs the names to agree exactly.
+**A road that was renamed *and* redrawn is invisible.** The geometry match needs
+the two arcs within the calibrated tolerance; the name rescue needs the names to
+agree exactly.
 A road that fails both is emitted as one segment retiring and another
 appearing, with nothing connecting them. That is the systematic blind spot, and
 it falls hardest on the long arcs the older files generalize into a coarse

@@ -27,7 +27,11 @@ library(dplyr)
 ## Set a cache path
 
 A national vintage is 200–350 MB compressed and about 2.2 million segments, so
-`canstreet` caches the archives and the harmonized database. This cache path should be set as CANSTREET_CACHE_PATH environment, the `set_canstreet_cache_path` facilitates this. If the `install = TRUE` parameter is set it installes it into .Renviron so it will be available in all future sessions and does not need to get called again.
+`canstreet` caches the archives and the harmonized database. The cache path is
+read from the `CANSTREET_CACHE_PATH` environment variable, which
+`set_canstreet_cache_path()` sets. With `install = TRUE` it also writes it to
+`.Renviron`, so it is available in all future sessions and does not need to be
+set again.
 
 ```{r cache, eval = FALSE}
 set_canstreet_cache_path("~/data/canstreet", install = TRUE)
@@ -42,18 +46,23 @@ list_road_network_vintages() |>
 ```
 
 The 1971 to 1986 Area Master Files and the 1991 and 1996 Street Network Files
-cover urban areas only; everything from 2001 on is national. Starting with 2005 data is available at yearly frequency, prior to that for census years only.
+cover urban areas only; everything from 2001 on is national. From 2005 on the
+files are annual; before that there is one per census year.
 
 ## Getting a vintage
 
-The `get_road_network` is the universal way to access the road network data for a given vintage, if needed it fetches the data and parses it into a local database, and hands back a lazy DuckDB table.
+`get_road_network()` is the universal way to access the road network data for a
+given vintage: if needed it fetches the data and parses it into a local
+database, and it hands back a lazy DuckDB table.
 
 ```{r get}
 roads <- get_road_network(2021)
 roads
 ```
 
-Once downloaded connecting to the database is instant, `dplyr` data operations should be chained before calling collect so they are run on DuckDB to keep memory overhead low and for optimized fast execution.
+Once downloaded, connecting to the database is instant. Chain `dplyr`
+operations before calling `collect()` so that they run in DuckDB, which keeps
+memory use low and execution fast.
 
 ```{r by-province}
 roads |>
@@ -96,7 +105,8 @@ get_road_network(2021, within = bbox) |>
 
 ## Comparing vintages
 
-Calling `get_road_network` with several vintages hands back a database connection with the individual vintages stacked that operates on all vintages simultaneously.
+Calling `get_road_network()` with several vintages hands back one lazy table
+with the vintages stacked, so a query runs over all of them at once.
 
 ```{r across-years}
 get_road_network(c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016,
@@ -108,13 +118,13 @@ get_road_network(c(1971, 1976, 1981, 1986, 1991, 1996, 2001, 2006, 2011, 2016,
 ```
 
 Nothing before 2001 is national, and the Area Master Files grow mostly by
-covering more places, 34 municipal files in 1971, 194 in 1986, so most of the rise
+covering more places (34 municipal files in 1971, 194 in 1986), so most of the rise
 to 1996 is due to expanding coverage. Segment counts do not compare across
 products either. 1986 holds more segments than 1991 over fewer kilometres
 because an Area Master File segment is a single block face. And not every
-segment is a road, over a third of 1986's arcs are shorelines, boundaries and
+segment is a road: over a third of 1986's arcs are shorelines, boundaries and
 railways, and 2001's extra 400,000 km is census boundary topology.
-Setting the `roads_only = TRUE` parameter drops both. The 2006–2021 drop is in the source data, not
+Setting `roads_only = TRUE` drops both. The 2006–2021 drop is in the source data, not
 the import. 2006 carries far more very long arcs, which later releases split,
 reclassified or dropped.
 
@@ -128,12 +138,13 @@ get_road_network(c(2006, 2021)) |>
 
 Identifiers are not stable across vintages, so comparing years
 is done by matching on geometry only. `build_temporal_network()` does that and writes one
-table in which each segment carries the years it is present in. For more details refer to vignette explaining the temporal matching 
-`vignette("canstreet-temporal")`. 
+table in which each segment carries the years it is present in. For details,
+see the vignette on temporal matching, `vignette("canstreet-temporal")`.
 
 ## The harmonized schema
 
-Every vintage maps onto the same columns, if a vintage does not carry a specific column the values are set to `NA`.
+Every vintage maps onto the same columns; where a vintage does not carry a
+column, its values are `NA`.
 
 ```{r schema}
 canstreet_schema()
@@ -145,7 +156,10 @@ resolves each by alias.
 
 ## Exporting
 
-For use in other systems like Python or QGIS one can use the same DuckDB, the local path can be accessed via the `path` property of `get_road_network_database()`. There also is a `export_road_network()` convenience function to explicitly export the data to GeoParquet with the CRS in its metadata:
+Other systems such as Python or QGIS can read the same DuckDB file; its local
+path is the `path` element of `get_road_network_database()`. There is also an
+`export_road_network()` convenience function that exports the data to
+GeoParquet with the CRS in its metadata:
 
 ```{r export, eval = FALSE}
 get_road_network(2021, within = bbox) |>
