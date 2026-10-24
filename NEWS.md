@@ -60,12 +60,21 @@ matches segments across years into a temporally unified network.
   `list_canstreet_cache()` shows what has been imported, and
   `remove_canstreet_cache()` removes vintages. Source archives are kept, so the
   database can be rebuilt without downloading again.
-* When Statistics Canada answers a download with a Cloudflare browser check
-  (as www12.statcan.gc.ca does for scripted requests since October 2026),
-  `canstreet_download()` and `get_road_network()` stop with the file's URL and
-  the exact cache path to save it to from a browser; the next call imports it.
-  The check is made on each download, so this stops once the challenge is
-  lifted.
+* Statistics Canada answers downloads with a Cloudflare browser check
+  (www12.statcan.gc.ca has done so for scripted requests since October 2026).
+  When it does, `canstreet_download()` opens a Chrome window with a throwaway
+  profile and lets the check run. The download then goes through curl with
+  the clearance the browser was given, which is reused for the rest of the
+  session, or, when the server will serve only the browser, through the
+  browser window itself. The browser work is done by the `safeconduct`
+  package (`remotes::install_github("mountainMath/safeconduct")`), which needs
+  a Chrome installation and a display; `options(canstreet.browser = FALSE)`
+  turns it off. Where the browser route is unavailable or does not
+  get through, the error gives the file's URL and the exact cache path to save
+  it to from a browser; the next call imports it. The check is made on each
+  download, so none of this runs once the challenge is lifted.
+* Downloads go through `curl::curl_download()`, which writes to a temporary
+  file and renames it on success, so a failed fetch leaves nothing behind.
 
 ## Known limitations
 

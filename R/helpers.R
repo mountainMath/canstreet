@@ -26,18 +26,25 @@ cs_network_error <- function(message) {
     list(message = message, call = NULL))
 }
 
-# download.file() wrapper that converts any failure -- unreachable host, HTTP
-# error, or a truncated/empty result -- into a canstreet_network_error.
-cs_download <- function(url, destfile, quiet = FALSE, ...) {
-  # These archives run to 350 MB; the 60-second default aborts most of them.
-  old <- options(timeout = max(3600, getOption("timeout")))
-  on.exit(options(old), add = TRUE)
+# A curl handle for one request.
+cs_curl_handle <- function(...) {
+  curl::new_handle(followlocation = TRUE, ...)
+}
 
-  status <- tryCatch(
-    utils::download.file(url, destfile, mode = "wb", quiet = quiet, ...),
-    error = function(e) 1L)
-  ok <- identical(as.integer(status), 0L) &&
-    file.exists(destfile) && file.info(destfile)$size > 0
+# Fetch `url` to `destfile`, converting any failure -- unreachable host, HTTP
+# error, or an empty result -- into a canstreet_network_error. curl writes to
+# a temporary file and renames it on success, so a failed fetch leaves nothing
+# behind for a later run to mistake for a complete download. There is no
+# overall timeout -- these archives run to 350 MB -- but a transfer that
+# stalls below a kilobyte a second for two minutes is abandoned.
+cs_download <- function(url, destfile, quiet = FALSE) {
+  h <- cs_curl_handle(connecttimeout = 60,
+                      low_speed_limit = 1024, low_speed_time = 120)
+  ok <- tryCatch({
+    curl::curl_download(url, destfile, quiet = quiet, mode = "wb", handle = h)
+    TRUE
+  }, error = function(e) FALSE)
+  ok <- ok && file.exists(destfile) && file.info(destfile)$size > 0
   if (!ok) {
     if (file.exists(destfile)) unlink(destfile)
     stop(cs_network_error(paste0(
@@ -71,8 +78,9 @@ cs_headers_are_an_archive <- function(headers) {
 # Since October 2026 Cloudflare fronts www12.statcan.gc.ca and answers scripted
 # requests with an interactive challenge: `403`, `text/html`, and the header
 # `cf-mitigated: challenge`, which is Cloudflare's documented marker for it.
-# A browser passes the challenge and gets the file. Keying on the header, not
-# on a date or a flag, means the manual-download route switches itself off the
+# A browser passes the challenge and gets the file, which is what
+# `R/clearance.R` arranges. Keying on the header, not on a date or a flag,
+# means the browser and manual-download routes switch themselves off the
 # moment the challenge is lifted.
 cs_headers_are_a_challenge <- function(headers) {
   h <- curl::parse_headers_list(headers)
@@ -93,9 +101,8 @@ cs_headers_are_a_challenge <- function(headers) {
 # whether it exists.
 cs_probe_url <- function(url) {
   res <- tryCatch(
-    curl::curl_fetch_memory(url, curl::new_handle(range = "0-0",
-                                                  followlocation = TRUE,
-                                                  maxfilesize = 1e6)),
+    curl::curl_fetch_memory(url, cs_curl_handle(range = "0-0",
+                                                maxfilesize = 1e6)),
     error = function(e) NULL)
   if (is.null(res)) return("missing")
   headers <- rawToChar(res$headers)

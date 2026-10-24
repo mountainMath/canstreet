@@ -47,6 +47,27 @@ online. All of it is Statistics Canada data,
 distributed under the Statistics Canada Open Licence
 (\url{https://www.statcan.gc.ca/en/reference/licence}).
 }
+\section{The Statistics Canada browser check}{
+
+Statistics Canada's download server answers requests that do not come from
+a web browser with a Cloudflare browser check instead of the file. When
+that happens, \code{canstreet_download()} opens a Chrome window with a
+throwaway profile and lets the check run. The download then goes through
+curl, carrying what the browser was given, and the window closes after a
+few seconds; when the server will serve only the browser itself, the file
+is downloaded in the window, which stays open until it is done.
+Occasionally the check asks for a click on a "Verify you are human" box,
+which is yours to give. This needs the \code{safeconduct} package
+(\code{remotes::install_github("mountainMath/safeconduct")}) and a Chrome or
+Chromium installation (set the \code{CHROMOTE_CHROME} environment variable if it
+is somewhere unusual), and a display to show the window on. Set
+\code{options(canstreet.browser = FALSE)} to never open one. Without the browser
+route, or when it does not get through, the error says which file to
+download by hand and the exact cache path to save it to; the next call
+imports it from there. None of this runs when Statistics Canada serves the
+file directly.
+}
+
 \examples{
 \dontrun{
 # ~310 MB

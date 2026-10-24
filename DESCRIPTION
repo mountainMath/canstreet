@@ -43,9 +43,12 @@ Suggests:
     ggplot2,
     knitr,
     rmarkdown,
+    safeconduct,
     testthat (>= 3.0.0),
     withr,
     zip
+Remotes:
+    mountainMath/safeconduct
 URL: https://github.com/mountainMath/canstreet, https://mountainmath.github.io/canstreet/
 BugReports: https://github.com/mountainMath/canstreet/issues
 VignetteBuilder: knitr

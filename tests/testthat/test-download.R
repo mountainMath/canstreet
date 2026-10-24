@@ -36,7 +36,7 @@ test_that("an unreachable host degrades to a classed condition", {
   cache <- withr::local_tempdir()
   local_mocked_bindings(
     cs_probe_url = function(url) "archive",
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_download = function(url, destfile, quiet = FALSE)
       stop(cs_network_error("Could not resolve host: www12.statcan.gc.ca"))
   )
 
@@ -55,7 +55,7 @@ test_that("a withdrawn StatCan release is reported, not silently saved", {
   # 200 OK and text/html, which download.file() would happily write as a .zip.
   local_mocked_bindings(
     cs_probe_url = function(url) "missing",
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_download = function(url, destfile, quiet = FALSE)
       stop("cs_download() should not be reached")
   )
 
@@ -89,11 +89,31 @@ test_that("a Cloudflare challenge is told apart from a missing release", {
     "Content-Range: bytes 0-0/262144000\r\n\r\n")))
 })
 
-test_that("a challenged StatCan file comes with manual-download instructions", {
+test_that("a challenged StatCan file is fetched by the browser route", {
   cache <- withr::local_tempdir()
+  asked <- NULL
   local_mocked_bindings(
     cs_probe_url = function(url) "challenge",
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_fetch_challenged = function(url, destfile, quiet = FALSE) {
+      asked <<- url
+      file.create(destfile)
+      TRUE
+    },
+    cs_download = function(url, destfile, quiet = FALSE)
+      stop("the plain fetch must not be tried on a challenged file")
+  )
+
+  out <- canstreet_download(2021, quiet = TRUE, cache_path = cache)
+  expect_true(file.exists(out$path))
+  expect_identical(asked, cs_source(2021)$resource)
+})
+
+test_that("without a browser, a challenged file comes with manual instructions", {
+  cache <- withr::local_tempdir()
+  withr::local_options(canstreet.browser = FALSE)
+  local_mocked_bindings(
+    cs_probe_url = function(url) "challenge",
+    cs_download = function(url, destfile, quiet = FALSE)
       stop("cs_download() should not be reached")
   )
 
@@ -103,6 +123,7 @@ test_that("a challenged StatCan file comes with manual-download instructions", {
   msg <- conditionMessage(err)
   dest <- file.path(cache, "downloads", "2021", "lrnf000r21a_e.zip")
   expect_match(msg, "browser check", fixed = TRUE)
+  expect_match(msg, "canstreet.browser", fixed = TRUE)
   expect_match(msg, cs_source(2021)$resource, fixed = TRUE)
   expect_match(msg, file.path(normalizePath(dirname(dest)), basename(dest)),
                fixed = TRUE)
@@ -113,16 +134,70 @@ test_that("a challenged StatCan file comes with manual-download instructions", {
   expect_identical(out$path, dest)
 })
 
-test_that("a failed StatCan fetch also says how to fetch it by hand", {
+safeconduct_error <- function(class, message) {
+  structure(class = c(class, "safeconduct_error", "error", "condition"),
+            list(message = message, call = NULL))
+}
+
+test_that("a browser that does not get through also leaves the manual route", {
+  skip_if_not_installed("safeconduct")
   cache <- withr::local_tempdir()
   local_mocked_bindings(
-    cs_probe_url = function(url) "archive",
-    cs_download = function(url, destfile, quiet = FALSE, ...)
-      stop(cs_network_error("Could not download it."))
-  )
+    cs_probe_url = function(url) "challenge",
+    cs_browser_unavailable_reason = function() NULL,
+    cs_download = function(url, destfile, quiet = FALSE)
+      stop("cs_download() should not be reached"))
+  local_mocked_bindings(
+    fetch = function(url, destfile, quiet = FALSE, timeout = 3600)
+      stop(safeconduct_error("safeconduct_not_passed", "not passed")),
+    .package = "safeconduct")
+  err <- expect_error(canstreet_download(2021, quiet = TRUE, cache_path = cache),
+                      "did not get past it", class = "canstreet_network_error")
+  expect_match(conditionMessage(err), cs_source(2021)$resource, fixed = TRUE)
+})
 
-  expect_error(canstreet_download(2021, quiet = TRUE, cache_path = cache),
-               "Could not download it\\.\\nTo import this vintage")
+test_that("a browser download that fails is a network error with the same instructions", {
+  skip_if_not_installed("safeconduct")
+  cache <- withr::local_tempdir()
+  local_mocked_bindings(
+    cs_probe_url = function(url) "challenge",
+    cs_browser_unavailable_reason = function() NULL)
+  local_mocked_bindings(
+    fetch = function(url, destfile, quiet = FALSE, timeout = 3600)
+      stop(safeconduct_error("safeconduct_download_error", "no data arrived")),
+    .package = "safeconduct")
+  err <- expect_error(canstreet_download(2021, quiet = TRUE, cache_path = cache),
+                      "no data arrived", class = "canstreet_network_error")
+  expect_match(conditionMessage(err), "download the file in a web browser",
+               fixed = TRUE)
+})
+
+test_that("a browser fetch that succeeds is the download", {
+  skip_if_not_installed("safeconduct")
+  cache <- withr::local_tempdir()
+  local_mocked_bindings(
+    cs_probe_url = function(url) "challenge",
+    cs_browser_unavailable_reason = function() NULL,
+    cs_download = function(url, destfile, quiet = FALSE)
+      stop("cs_download() should not be reached"))
+  local_mocked_bindings(
+    fetch = function(url, destfile, quiet = FALSE, timeout = 3600) {
+      file.create(destfile); invisible(destfile)
+    },
+    .package = "safeconduct")
+  out <- canstreet_download(2021, quiet = TRUE, cache_path = cache)
+  expect_true(file.exists(out$path))
+})
+
+test_that("without safeconduct, the instructions say how to install it", {
+  cache <- withr::local_tempdir()
+  local_mocked_bindings(
+    cs_probe_url = function(url) "challenge",
+    cs_browser_unavailable_reason = function()
+      "the `safeconduct` package is not installed")
+  err <- expect_error(canstreet_download(2021, quiet = TRUE, cache_path = cache),
+                      class = "canstreet_network_error")
+  expect_match(conditionMessage(err), "install_github", fixed = TRUE)
 })
 
 test_that("a cached archive is not re-downloaded", {
@@ -132,7 +207,7 @@ test_that("a cached archive is not re-downloaded", {
 
   local_mocked_bindings(
     cs_probe_url = function(url) stop("should not probe"),
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_download = function(url, destfile, quiet = FALSE)
       stop("should not download")
   )
 
@@ -178,7 +253,7 @@ test_that("an Abacus vintage resolves file ids through the dataset manifest", {
     abacus_file(68312, "readme.txt")))
 
   local_mocked_bindings(
-    cs_download = function(url, destfile, quiet = FALSE, ...) {
+    cs_download = function(url, destfile, quiet = FALSE) {
       writeLines("x", destfile)
       invisible(0L)
     })
@@ -199,7 +274,7 @@ test_that("restricted Abacus files are refused rather than fetched", {
                                          restricted = TRUE)))
 
   local_mocked_bindings(
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_download = function(url, destfile, quiet = FALSE)
       stop("a restricted file must not be fetched"))
 
   expect_error(canstreet_download(1996, quiet = TRUE, cache_path = cache),
@@ -222,7 +297,7 @@ test_that("the 1991 pattern takes the coverages, not the derived files", {
     abacus_file(7, "GSNF205_geojson.geojson")))
 
   local_mocked_bindings(
-    cs_download = function(url, destfile, quiet = FALSE, ...) {
+    cs_download = function(url, destfile, quiet = FALSE) {
       writeLines("x", destfile); invisible(0L)
     })
 
@@ -237,7 +312,7 @@ test_that("a hosted Area Master File vintage is fetched into the usual cache", {
     # The probe is for Statistics Canada's soft 404; a missing object on the
     # hosted bucket is a real one.
     cs_probe_url = function(url) stop("should not probe"),
-    cs_download = function(url, destfile, quiet = FALSE, ...) {
+    cs_download = function(url, destfile, quiet = FALSE) {
       asked <<- c(asked, url)
       file.create(destfile)
       invisible(destfile)
@@ -260,7 +335,7 @@ test_that("a hosted Area Master File vintage is fetched into the usual cache", {
 test_that("an unreachable bucket degrades to the same classed condition", {
   cache <- withr::local_tempdir()
   local_mocked_bindings(
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_download = function(url, destfile, quiet = FALSE)
       stop(cs_network_error("HTTP status was '404 Not Found'"))
   )
   expect_error(canstreet_download(1986, quiet = TRUE, cache_path = cache),

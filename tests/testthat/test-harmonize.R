@@ -264,7 +264,7 @@ test_that("an archive with no readable line layer is an error, not a silence", {
 local_no_network <- function(env = parent.frame()) {
   local_mocked_bindings(
     cs_probe_url = function(url) stop("should not probe"),
-    cs_download = function(url, destfile, quiet = FALSE, ...)
+    cs_download = function(url, destfile, quiet = FALSE)
       stop("should not download"),
     .env = env)
 }

@@ -41,6 +41,13 @@ to every future session. You can also set the `canstreet.cache_path` option, or
 the environment variable directly, `canstreet_cache_path()` reports what is in
 effect, and `show_canstreet_cache_path()` says where the setting came from.
 
+Statistics Canada's download server puts a Cloudflare browser check in front of
+its files. To pass it, `canstreet` opens a Chrome window for a few seconds and
+downloads with the clearance it is given. That needs the
+[`safeconduct`](https://github.com/mountainMath/safeconduct) package and Chrome
+installed; without them, it tells you which file to download by hand and where to
+put it. See `?canstreet_download`.
+
 ## Documentation
 
 Reference documentation for every function, along with the vignettes, is at

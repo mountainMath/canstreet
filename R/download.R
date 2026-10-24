@@ -16,6 +16,25 @@
 #' distributed under the Statistics Canada Open Licence
 #' (<https://www.statcan.gc.ca/en/reference/licence>).
 #'
+#' @section The Statistics Canada browser check:
+#' Statistics Canada's download server answers requests that do not come from
+#' a web browser with a Cloudflare browser check instead of the file. When
+#' that happens, `canstreet_download()` opens a Chrome window with a
+#' throwaway profile and lets the check run. The download then goes through
+#' curl, carrying what the browser was given, and the window closes after a
+#' few seconds; when the server will serve only the browser itself, the file
+#' is downloaded in the window, which stays open until it is done.
+#' Occasionally the check asks for a click on a "Verify you are human" box,
+#' which is yours to give. This needs the `safeconduct` package
+#' (`remotes::install_github("mountainMath/safeconduct")`) and a Chrome or
+#' Chromium installation (set the `CHROMOTE_CHROME` environment variable if it
+#' is somewhere unusual), and a display to show the window on. Set
+#' `options(canstreet.browser = FALSE)` to never open one. Without the browser
+#' route, or when it does not get through, the error says which file to
+#' download by hand and the exact cache path to save it to; the next call
+#' imports it from there. None of this runs when Statistics Canada serves the
+#' file directly.
+#'
 #' @param vintage Reference year of the network, e.g. `2021`. See
 #'   [list_road_network_vintages()] for what is available.
 #' @param refresh Re-download even when the archive is already cached.
@@ -83,24 +102,32 @@ canstreet_download <- function(vintage,
   # unreadable archive. Probe before committing to the download.
   #
   # A bot challenge in front of the file (see `cs_headers_are_a_challenge()`)
-  # is not a missing release: a browser still gets the file, so the error says
-  # where to fetch it and where to put it. A failed fetch from StatCan says the
-  # same. Both are decided on what the server answers now, so nothing needs
-  # undoing when the challenge goes away.
+  # is not a missing release: a browser still gets the file. So one is opened
+  # to pass the check (`R/clearance.R`, through the safeconduct package), and
+  # the download then carries what it earned. When no browser can be had, or
+  # it does not pass, the error says
+  # where to fetch the file and where to put it; a failed fetch from StatCan
+  # says the same. All of it is decided on what the server answers now, so
+  # nothing needs undoing when the challenge goes away.
   is_statcan <- identical(src$host, "statcan")
+  manual <- function(i, why) {
+    stop(cs_manual_download_error(todo$url[i], todo$path[i], why))
+  }
   if (is_statcan && any(!have)) {
-    probe <- cs_probe_url(src$resource)
+    # A StatCan vintage is one archive.
+    i <- which(!have)
+    probe <- cs_probe_url(todo$url[i])
     if (identical(probe, "challenge")) {
-      stop(cs_manual_download_error(
-        src$resource, todo$path[1],
-        paste0("Statistics Canada is answering automated requests for the ",
-               src$vintage, " road network file with a browser check ",
-               "(Cloudflare), so canstreet cannot download it.")))
-    }
-    if (!identical(probe, "archive")) {
+      cs_message(quiet, "  ", todo$filename[i])
+      fetched <- tryCatch(
+        cs_fetch_challenged(todo$url[i], todo$path[i], quiet = quiet),
+        canstreet_network_error = function(e) manual(i, conditionMessage(e)))
+      if (!isTRUE(fetched)) manual(i, cs_challenge_why(src$vintage))
+      have[i] <- TRUE
+    } else if (!identical(probe, "archive")) {
       stop(cs_network_error(paste0(
         "Statistics Canada is not serving a road network file at '",
-        src$resource, "'.\nThe release may have been moved or withdrawn; if ",
+        todo$url[i], "'.\nThe release may have been moved or withdrawn; if ",
         "the URL has changed, please file an issue against canstreet.")))
     }
   }
@@ -108,12 +135,9 @@ canstreet_download <- function(vintage,
   for (i in which(!have)) {
     cs_message(quiet, "  ", todo$filename[i])
     if (is_statcan) {
-      tryCatch(
-        cs_download(todo$url[i], todo$path[i], quiet = TRUE),
-        canstreet_network_error = function(e) {
-          stop(cs_manual_download_error(todo$url[i], todo$path[i],
-                                        conditionMessage(e)))
-        })
+      tryCatch(cs_download(todo$url[i], todo$path[i], quiet = TRUE),
+               canstreet_network_error = function(e)
+                 manual(i, conditionMessage(e)))
     } else {
       cs_download(todo$url[i], todo$path[i], quiet = TRUE)
     }

@@ -56,6 +56,7 @@ here.
 | `R/db.R` | Connection cache, spatial extension, storage CRS, metadata tables, `segments` view |
 | `R/import.R` | The harmonizer: target schema, alias resolution, address normalization |
 | `R/helpers.R` | Download probing, `robust_unzip()`, `.e00` staging and byte repair |
+| `R/clearance.R` | The browser route for a challenged StatCan download: delegates to the `safeconduct` package (Suggests; `/Users/jens/R/safeconduct`) and maps its classed errors onto the manual-download instructions |
 | `R/api.R` | `get_road_network()`, `collect_road_network()`, `export_road_network()`, `canstreet_schema()` |
 | `R/cache_path.R` | `CANSTREET_CACHE_PATH` → `canstreet.cache_path` option → `tempdir()` |
 | `R/cache_mgmt.R` | `list_canstreet_cache()`, `remove_canstreet_cache()` |
