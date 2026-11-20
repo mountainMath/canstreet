@@ -31,14 +31,21 @@
 #               the only source that documents class 95.
 #   2021        https://www12.statcan.gc.ca/census-recensement/2021/geo/ref/
 #               domain-domaine/index2021-eng.cfm?lang=e&id=CLASS (and `=RANK`).
+#   2026        The same page under `2026/` and `index2026`, read 2026-11-19:
+#               every code and every word as 2021's. It also defines PARITY
+#               (`E`, `O`, `M`), a new column that is not mapped.
 #
-# Every guide but 2021's ships *inside* the archive the vintage arrives in:
+# A vocabulary is applied only to the years up to the last one read
+# (`cs_rnf_domain_last()`); a later release stores raw codes and gets no road
+# filter until its own page has been read and the bound moved.
+#
+# Every guide but 2021's and 2026's ships *inside* the archive the vintage arrives in:
 # `92-500-G<year>001-eng.pdf` in each Road Network File zip
 # (`92-500-GIE2005001.pdf` in 2005's), `92f0157g2001000-eng.pdf` in 2001's, `snfarc.pdf` and `snfamf.pdf` in the
 # 1991 Abacus deposit, and the 1988 guide in the `documentation` directory of
 # each Area Master File zip. Extract it from the cached archive and read it
 # rather than searching the web -- the attribute-domain pages on the Statistics
-# Canada site cover 2021 only, and the 2011 and 2016 spellings of that URL
+# Canada site cover 2021 and 2026 only, and the 2011 and 2016 spellings of that URL
 # return the soft 404. The two Area Master File guides are scans with no text
 # layer, so `pdftotext` returns nothing for them.
 #
@@ -370,11 +377,27 @@ cs_domain_rnf_2005_class <- function() {
   )
 }
 
+#' The last Road Network File year whose vocabulary has been read
+#'
+#' The modern class and rank vocabularies are applied to 2011 through this year
+#' and no later, so that a new release is not labelled with codes it may have
+#' changed. Move it only after reading the new year's own domain page and its
+#' arcs (`R/classes.R`).
+#'
+#' @return An integer.
+#' @keywords internal
+#' @noRd
+cs_rnf_domain_last <- function() 2026L
+
+cs_rnf_modern <- function(vintage) {
+  vintage >= 2011L & vintage <= cs_rnf_domain_last()
+}
+
 #' The modern Road Network File street class vocabulary
 #'
 #' Common to 2011 onward, and revised twice within it: 2016 adds `95` alongside
 #' `90` ("90, 95 -- Unknown" in that year's guide) and 2021 retires `95` and adds
-#' `87`. The wording follows the 2021 attribute domain page throughout, so that a
+#' `87`. 2026 is 2021's unchanged. The wording follows the 2021 attribute domain page throughout, so that a
 #' class means the same string in every vintage that carries it; only the set of
 #' codes is per-vintage.
 #'
@@ -410,8 +433,8 @@ cs_domain_rnf_class <- function(vintage) {
 
 #' The modern Road Network File street rank vocabulary
 #'
-#' Unchanged from 2011 to 2021 but for the 2011 guide naming Transport Canada as
-#' the authority for ranks 1 and 2; the 2016 and 2021 wording is used throughout.
+#' Unchanged from 2011 to 2026 but for the 2011 guide naming Transport Canada as
+#' the authority for ranks 1 and 2; the 2016-2026 wording is used throughout.
 #' Ranks are ordinal and the `ENUM` is declared in rank order, so `ORDER BY rank`
 #' sorts Trans-Canada highways first.
 #'
@@ -471,10 +494,11 @@ cs_class_domain <- function(vintage) {
     cs_domain_rnf_2001_class()
   } else if (vintage == 2005L) {
     cs_domain_rnf_2005_class()
-  } else if (identical(src$product[1], "RNF") && vintage >= 2011L) {
+  } else if (identical(src$product[1], "RNF") && cs_rnf_modern(vintage)) {
     cs_domain_rnf_class(vintage)
   } else {
-    # 2006-2010 ship no class column.
+    # 2006-2010 ship no class column, and a year past cs_rnf_domain_last() has
+    # not been read.
     NULL
   }
   if (is.null(d)) NULL else cs_domain_disambiguate(d)
@@ -489,7 +513,7 @@ cs_class_domain <- function(vintage) {
 cs_rank_domain <- function(vintage) {
   src <- cs_source(vintage)
   if (!nrow(src)) return(NULL)
-  if (!identical(src$product[1], "RNF") || as.integer(vintage) < 2011L) {
+  if (!identical(src$product[1], "RNF") || !cs_rnf_modern(as.integer(vintage))) {
     return(NULL)
   }
   cs_domain_disambiguate(cs_domain_rnf_rank(as.integer(vintage)))

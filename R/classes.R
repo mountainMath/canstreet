@@ -33,8 +33,16 @@
 # the Bruce Trail and numbered park paths, so it is not a road; 2001's `1306`
 # "Trail: other" is the Klondike, Alaska and Dempster highways, so it is. 2021's
 # class 26 "Reserve / Trail" is 92,000 km of forest service and resource road
-# (2,470 arcs typed `FSR`, 5,103 typed `RD`), so it is. Class 27 "Rapid transit"
-# is Ottawa's Transitway, a road that carries buses, so it is.
+# (2,470 arcs typed `FSR`, 5,103 typed `RD`), so it is; 2026's is the same
+# (88,300 km, 2,428 `FSR`, 5,046 `RD`). Class 27 "Rapid transit" is Ottawa's
+# Transitway, a road that carries buses, so it is.
+#
+# 2026 was read against its own arcs before it was given 2021's assignments:
+# the classes above mean what they meant, and its 168 class-28 "Planned" arcs
+# are unnamed but for two. What is new is 1,379 arcs with no class at all,
+# against 3 in 2021. They are ordinary roads -- concession and range roads,
+# numbered highways, 1,365 of them named and 1,256 addressed -- so the
+# filter's `class IS NULL` arm, which keeps them, is load-bearing there.
 
 #' The feature category and build status of each class code
 #'
@@ -64,8 +72,8 @@ cs_class_categories <- function(vintage) {
   if (identical(src$product[1], "SNF")) return(cs_categories_snf())
   if (vintage == 2001L) return(cs_categories_rnf_2001())
   if (vintage == 2005L) return(cs_categories_rnf_2005())
-  if (vintage >= 2011L) return(cs_categories_rnf(vintage))
-  # 2006-2010 ship no class column.
+  if (cs_rnf_modern(vintage)) return(cs_categories_rnf(vintage))
+  # 2006-2010 ship no class column; a year past cs_rnf_domain_last() is unread.
   NULL
 }
 

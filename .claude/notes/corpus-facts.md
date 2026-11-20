@@ -152,7 +152,24 @@ external check on the modern end -- not as a vintage.
 | 2011 | 1,973,932 | | unchanged | | national |
 | 2016 | 2,163,058 | | -194 arcs | -30.1 | national |
 | 2021 | 2,242,117 | ~1,170,000 | -203 arcs | -27.3 | national |
+| 2026 | 2,245,125 | 1,176,269 | -168 arcs | -20 | national |
 
+- 2026 (released 2026-11-18; the detailed `r` file, never the generalized `s`) has the same class
+  and rank vocabulary as 2021, but 1,379 arcs with a NULL class against 2021's 3: ordinary roads,
+  1,365 named, 1,256 addressed, 1,335 km, kept by the filter's `class IS NULL` arm. It drops
+  `OBJECTID` and adds `PARITY_L`/`PARITY_R` (`E`/`O`/`M`) and `Shape_Leng`.
+- Every RNF `.dbf` with a `.cpg` says `ANSI 1252`, and it is: `0x96` en dashes (4,979 in 2026, 12 in
+  2021) and `0x92` apostrophes (16 / 140). Read as ISO-8859-1 they become C1 controls -- `Sambaa
+  K\u0092e`, `Saint-Lin\u0096Laurentides` -- in CSD names mostly, and in 29 2026 street names.
+- Checked across the whole series 2026-11-19 (cached years whole; 2007-10, 2012-15, 2017-20 and
+  2022-25 by range-reading each zip's `.cpg` and the first ~50 MB of its `.dbf`): no vintage is
+  UTF-8 or a DOS code page, é is `0xE9` throughout, and only 2021 and 2026 ship a `.cpg`. The dBASE
+  language byte is `0x00` (unset) or `0x57`, and `0x58` in 2025 -- all Windows-1252 or unspecified.
+  The bytes where 1252 and ISO-8859-1 differ appear in values from 2016 on (`0x92`), with `0x96` from
+  2017 and, in 2025 only, `0x97` em dashes (`Saint-Lin—Laurentides`, which 2026 spells with an en
+  dash). Before 2016 both readings give identical text. 1991/1996 `.e00` are ASCII; 2001's MIF
+  declares `WindowsLatin1`. Stray `0x81`/`0x86` bytes in the 2006, 2011 and 2026 `.dbf` headers are
+  date bytes, not text.
 - 2001 is 1,329,337 km with its 360 under-construction arcs left in; the 388,345 km that separates
   it from 2006 was entirely census topology (`BO` 167,916 arcs / 388,345 km, `1536` 1,625 / 18,650,
   `SB` 2,611 / 171 -- none named, typed or addressed). `1011` is the ordinary street, 688,063 arcs;
@@ -199,6 +216,7 @@ external check on the modern end -- not as a vintage.
 | 2001 | eight "under construction" descriptions | 360 | 455.5 |
 | 2016 | `28` Planned | 194 | 30.1 |
 | 2021 | `28` Planned | 203 | 27.3 |
+| 2026 | `28` Planned | 168 | 20 |
 
 The Street Network File records the same thing a second way and it is *not* filtered: the
 fixed-width `NAME` field packs `PROP.`/`PROJ.` as a suffix on 2,182 arcs / 470 km in 1991 and 932 /

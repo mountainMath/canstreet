@@ -48,9 +48,12 @@ test_that("StatCan URLs follow the projection and directory rules", {
   expect_match(cs_statcan_url(2011), "grnf000r11a_e\\.zip$")
   expect_match(cs_statcan_url(2012), "lrnf000r12a_e\\.zip$")
 
-  # The two vintages that live outside the main directory.
+  # The three vintages that live outside the main directory.
   expect_match(cs_statcan_url(2016), "files-fichiers/2016/lrnf000r16a_e\\.zip$")
   expect_match(cs_statcan_url(2021), "2021/geo/sip-pis/rnf-frr/")
+  # The detailed (`r`) file, never the generalized (`s`) one.
+  expect_match(cs_statcan_url(2026),
+               "2026/geo/sip-pis/rnf-frr/files-fichiers/lrnf000r26a_e\\.zip$")
 
   # 2001 is the one vintage where the `a` variant is not what to take: there it
   # is an ArcInfo coverage, and `m` is the MapInfo release read in its place.
@@ -65,7 +68,7 @@ test_that("StatCan URLs follow the projection and directory rules", {
 test_that("unknown vintages are rejected with a useful message", {
   expect_error(cs_check_vintage(1966), "No road network file")
   expect_error(cs_check_vintage(1966), "Available vintages")
-  expect_error(cs_check_vintage(2026), "No road network file")
+  expect_error(cs_check_vintage(2000), "No road network file")
   expect_error(cs_check_vintage(c(1996, 2021)), "single year")
   expect_identical(cs_check_vintage(2021), 2021L)
   expect_identical(cs_check_vintage("2021"), 2021L)

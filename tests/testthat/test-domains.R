@@ -95,6 +95,16 @@ test_that("canstreet_domains() reports what is stored", {
   expect_identical(nrow(canstreet_domains(2021, domain = "rank")), 5L)
 })
 
+test_that("2026 carries 2021's vocabulary, and no unread year gets one", {
+  expect_identical(cs_class_domain(2026), cs_class_domain(2021))
+  expect_identical(cs_rank_domain(2026), cs_rank_domain(2021))
+  expect_identical(cs_class_categories(2026), cs_class_categories(2021))
+  # A release past the last one read is not labelled from an older guide.
+  expect_false(cs_rnf_modern(cs_rnf_domain_last() + 1L))
+  expect_true(cs_rnf_modern(2011L))
+  expect_false(cs_rnf_modern(2010L))
+})
+
 # A vintage table carrying one published class, one published rank, a code the
 # guide does not define, and a NULL -- which is every case the retyping has to
 # get right at once.

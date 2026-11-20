@@ -31,8 +31,8 @@ cs_amf_url <- function(vintage) {
 
 amf_vintages <- c(1971, 1976, 1981, 1986)
 
-# Statistics Canada serves the whole 2006-2025 series from two directories, but
-# neither the file prefix nor the path is stable across it:
+# Statistics Canada serves the whole 2006-2026 series from three directories,
+# but neither the file prefix nor the path is stable across it:
 #
 #   * the prefix encodes the projection -- `g` geographic (lat/long), `l` the
 #     StatCan Lambert conic (EPSG:3347). It flips at 2012.
@@ -41,7 +41,13 @@ amf_vintages <- c(1971, 1976, 1981, 1986)
 #     release, so we always take `a`. (Do not reach for the 2025 GeoPackage:
 #     it carries CircularStrings that the DuckDB spatial extension rejects,
 #     and the shapefile spells the same features as plain LINESTRINGs.)
-#   * 2016 and 2021 sit in their own directories.
+#   * the letter after `000` encodes the precision -- `r` detailed, `s`
+#     generalized. 2026 is the first release offered in both
+#     (`lrnf000s26a_e.zip`, 186 MB against 226 MB for the detailed). Always
+#     take `r`: this package wants the full network, and a generalized arc
+#     would not match its detailed self in the other vintages.
+#   * 2016 sits in its own directory, and the census years 2021 and 2026 in
+#     their own census's.
 cs_statcan_url <- function(vintage) {
   yy <- sprintf("%02d", vintage %% 100)
   if (vintage == 2001) {
@@ -77,9 +83,10 @@ cs_statcan_url <- function(vintage) {
     # Road Network File -- a four-level generalization, not the full network.
     paste0(statcan_census_base, "2011/geo/rnf-frr/files-fichiers/",
            "grnf000r01m_e.zip")
-  } else if (vintage == 2021) {
-    paste0(statcan_census_base, "2021/geo/sip-pis/rnf-frr/files-fichiers/",
-           "lrnf000r21a_e.zip")
+  } else if (vintage %in% c(2021, 2026)) {
+    # Census years live in their own census's directory.
+    paste0(statcan_census_base, vintage, "/geo/sip-pis/rnf-frr/files-fichiers/",
+           "lrnf000r", yy, "a_e.zip")
   } else if (vintage == 2016) {
     paste0(statcan_census_base, "2011/geo/RNF-FRR/files-fichiers/2016/",
            "lrnf000r16a_e.zip")
@@ -94,10 +101,17 @@ cs_statcan_url <- function(vintage) {
 
 # 2005 is the first year of the 92-500-X series; 2001 predates it but is served
 # from the same directory, so it rides along here rather than through Abacus.
-# 2016 and 2021 are in the set but get their own paths, handled in
-# `cs_statcan_url()`. There is no 2026 release: the catalogue page and the file
-# URL both 404 as of 2026-08-28.
-statcan_vintages <- c(2001, 2005:2025)
+# 2016, 2021 and 2026 are in the set but get their own paths, handled in
+# `cs_statcan_url()`.
+#
+# The list of releases to check this against is the 92-500-X catalogue page,
+# https://www150.statcan.gc.ca/n1/en/catalogue/92-500-X -- a paged table of
+# every year from 2005, with its release date and a link to its download page
+# (not to the file; derive that from the patterns above). It is the stable
+# address: the per-census overview pages move with each census. 2001 is not on
+# it, being catalogue 92F0157GIE. Reading it needs a browser, as the file
+# downloads do.
+statcan_vintages <- c(2001, 2005:2026)
 
 #' Source manifest for the historical road and street network files
 #'

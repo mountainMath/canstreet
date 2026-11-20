@@ -155,7 +155,7 @@ More details on how this works and how to use it can be found in the function do
 | 1971, 1976, 1981, 1986 | *Area Master File* | Large urban centres | MountainMath (the Statistics Canada files, hosted) |
 | 1991, 1996 | *Street Network File* | Large urban centres | Abacus Data Network (UBC) |
 | 2001 | *Road Network File* (92F0157GIE) | National | Statistics Canada |
-| 2005-2025 | *Road Network File* (92-500-X) | National | Statistics Canada |
+| 2005-2026 | *Road Network File* (92-500-X) | National | Statistics Canada |
 
 ### Lineage
 
