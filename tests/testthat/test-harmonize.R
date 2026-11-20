@@ -404,3 +404,23 @@ test_that("a vintage imported from a retired source is imported again", {
   expect_identical(cs_db_builds(con), character(0))
   expect_false(DBI::dbExistsTable(con, "tnet_old"))
 })
+
+test_that("C1 controls read as ISO-8859-1 come back as Windows-1252", {
+  skip_if_not_installed("duckdb")
+  con <- DBI::dbConnect(duckdb::duckdb())
+  withr::defer(DBI::dbDisconnect(con, shutdown = TRUE))
+  fix <- function(s) {
+    DBI::dbGetQuery(con, paste0("SELECT ", cs_cp1252_sql("x"), " AS y FROM ",
+                                "(SELECT ", s, " AS x)"))$y
+  }
+  # What the RNF actually carries: 0x92, 0x96 and 0x97.
+  expect_equal(fix("'Sambaa K' || chr(146) || 'e'"), "Sambaa K’e")
+  expect_equal(fix("'Saint-Lin' || chr(150) || 'Laurentides'"),
+               "Saint-Lin–Laurentides")
+  expect_equal(fix("'a' || chr(151) || 'b'"), "a—b")
+  # Both ends of the table, and a byte Windows-1252 leaves undefined.
+  expect_equal(fix("chr(128) || chr(159) || chr(129)"), "€Ÿ\u0081")
+  # Latin-1 proper, and NULL, pass through untouched.
+  expect_equal(fix("'Montréal'"), "Montréal")
+  expect_true(is.na(fix("CAST(NULL AS VARCHAR)")))
+})

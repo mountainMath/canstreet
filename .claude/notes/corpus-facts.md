@@ -170,6 +170,10 @@ external check on the modern end -- not as a vintage.
   dash). Before 2016 both readings give identical text. 1991/1996 `.e00` are ASCII; 2001's MIF
   declares `WindowsLatin1`. Stray `0x81`/`0x86` bytes in the 2006, 2011 and 2026 `.dbf` headers are
   date bytes, not text.
+- Fixed in schema version 3 (2026-11-19). Strings are still read as ISO-8859-1 and the C1 range is
+  remapped by `cs_cp1252_sql()`. GDAL's `ENCODING=CP1252` does not work as a decode: on 2021 it
+  wrote `--` for `0x96` and left `0x92` as a raw byte, and on 2026 it did the reverse. Re-imported,
+  2026 has 0 C1 characters left and 2,538 rows carrying an en dash, em dash or right quote.
 - 2001 is 1,329,337 km with its 360 under-construction arcs left in; the 388,345 km that separates
   it from 2006 was entirely census topology (`BO` 167,916 arcs / 388,345 km, `1536` 1,625 / 18,650,
   `SB` 2,611 / 171 -- none named, typed or addressed). `1011` is the ordinary street, 688,063 arcs;

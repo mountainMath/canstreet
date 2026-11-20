@@ -59,8 +59,8 @@ cs_create_table_sql <- function(con, table) {
     "  geom GEOMETRY\n);")
 }
 
-# `ST_Read` on the RNF shapefile needs ENCODING=ISO-8859-1. The .dbf is Latin-1
-# with no .cpg, and without the option the first accented street name aborts
+# `ST_Read` on the RNF shapefile needs an ENCODING option. The .dbf is not UTF-8,
+# and most vintages ship no .cpg to say so; without the option the first accented street name aborts
 # the scan with `invalid code point detected in Utf8Proc::UTF8ToCodepoint` --
 # which surfaces at the first string operation, not at read, so it looks like a
 # problem with string folding rather than with the file.
@@ -78,6 +78,19 @@ cs_create_table_sql <- function(con, table) {
 # is its layer named: it calls its layers after their geometry, `ARC` for the
 # network and `PAL`, `CNT` and `LAB` for the polygon side, and `ST_Read` would
 # otherwise take whichever comes first.
+#
+# ISO-8859-1 is not what the files are, though: every Road Network File `.dbf`
+# is Windows-1252 (the two that ship a `.cpg` say `ANSI 1252`), whose 0x80-0x9F
+# are typographic characters where ISO-8859-1 has C1 controls. From 2016 they
+# occur -- `0x92` in `Sambaa K’e`, `0x96` in 2026's `Saint-Lin–Laurentides`,
+# `0x97` in 2025's spelling of the same name -- and read as ISO-8859-1 they are
+# stored as invisible U+0092, U+0096, U+0097. The read stays ISO-8859-1 and
+# `cs_cp1252_sql()` remaps the 27 code points afterwards, because GDAL's own
+# `ENCODING=CP1252` is not a decode: on the same file it transliterates some of
+# them to ASCII (`--`, `'`) and passes others through as raw bytes, which are
+# invalid UTF-8 and abort the INSERT. ISO-8859-1 is a lossless byte-to-code-point
+# map, so nothing is lost before the remap. `.claude/notes/corpus-facts.md`
+# has the per-vintage survey.
 cs_st_read_sql <- function(path) {
   layer <- if (grepl("\\.e00$", path, ignore.case = TRUE)) {
     ", layer = 'ARC'"
@@ -86,6 +99,32 @@ cs_st_read_sql <- function(path) {
   }
   paste0("st_read('", gsub("'", "''", path), "'", layer,
          ", open_options = ['ENCODING=ISO-8859-1'])")
+}
+
+#' Remap C1 controls to the Windows-1252 characters they were read from
+#'
+#' A string read as ISO-8859-1 from a Windows-1252 file carries U+0080-U+009F
+#' where the file had the 27 characters Windows-1252 puts in 0x80-0x9F. Those
+#' are mapped back; the five bytes Windows-1252 leaves undefined (0x81, 0x8D,
+#' 0x8F, 0x90, 0x9D) stay as they are. The replace chain runs only on a string
+#' that contains a C1 control at all, which is a few thousand rows a vintage.
+#'
+#' @param expr SQL expression yielding a VARCHAR.
+#' @return A SQL expression.
+#' @keywords internal
+#' @noRd
+cs_cp1252_sql <- function(expr) {
+  from <- c(0x80, 0x82:0x8C, 0x8E, 0x91:0x9C, 0x9E, 0x9F)
+  to <- c(0x20AC, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6,
+          0x2030, 0x0160, 0x2039, 0x0152, 0x017D, 0x2018, 0x2019, 0x201C,
+          0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A,
+          0x0153, 0x017E, 0x0178)
+  chain <- expr
+  for (i in seq_along(from)) {
+    chain <- paste0("replace(", chain, ", chr(", from[i], "), chr(", to[i], "))")
+  }
+  paste0("CASE WHEN regexp_matches(", expr, ", '[\\x{80}-\\x{9F}]') THEN ",
+         chain, " ELSE ", expr, " END")
 }
 
 #' Build the INSERT that harmonizes one shapefile into a vintage table
@@ -115,8 +154,9 @@ cs_harmonize_sql <- function(con, path, src, table) {
       # empty string everywhere, the literal "N/A" in the modern RNF, and a
       # bare underscore throughout 2001. Left alone, every comparison against
       # a parsed street type gains values that are neither match nor miss.
-      paste0("nullif(nullif(nullif(trim(CAST(", col,
-             " AS VARCHAR)), ''), 'N/A'), '_')")
+      paste0("nullif(nullif(nullif(trim(",
+             cs_cp1252_sql(paste0("CAST(", col, " AS VARCHAR)")),
+             "), ''), 'N/A'), '_')")
     } else {
       paste0("TRY_CAST(", col, " AS ", schema$type[i], ")")
     }

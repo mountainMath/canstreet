@@ -21,9 +21,14 @@ cs_storage_crs <- function() "EPSG:3347"
 #'
 #' Bumped when the import produces a materially different database, so that a
 #' cache written by an older version can be recognised and rebuilt.
+#' Rebuilding re-imports from the archives under `downloads/`; it downloads
+#' only what is missing there.
+#'
+#' 3: strings decoded as Windows-1252 rather than ISO-8859-1
+#' (`cs_cp1252_sql()`), which changes the stored text of 2016 onward.
 #' @keywords internal
 #' @noRd
-cs_schema_version <- function() 2L
+cs_schema_version <- function() 3L
 
 cs_db_path <- function(cache_path) {
   file.path(cs_cache_dir(cache_path), "canstreet.duckdb")
